@@ -216,7 +216,7 @@ class AzureStorageClient:
             bool: True if successful, False otherwise
         """
         try:
-            # Get current service properties (returns Dict[str, Any])
+            # Get current service properties (returns Dict[str, Any] with model objects)
             service_properties = self.blob_service_client.get_service_properties()
             
             # Create CORS rule using CorsRule class
@@ -228,13 +228,16 @@ class AzureStorageClient:
                 max_age_in_seconds=max_age_in_seconds
             )
             
-            # Azure SDK's set_service_properties can accept CorsRule objects directly
-            # Update the service properties dict with CORS rules
-            # The 'cors' key should contain a list of CorsRule objects
+            # Update only the CORS field while preserving all other properties
             service_properties['cors'] = [cors_rule]
             
+            # Set default service version if it's None (required by Azure Storage API)
+            # Azure Storage API requires a Version element in the XML
+            if service_properties.get('target_version') is None:
+                # Use a recent API version (2021-04-10 is widely supported)
+                service_properties['target_version'] = '2021-04-10'
+            
             # Apply the updated service properties
-            # set_service_properties accepts the dict and will serialize CorsRule objects properly
             self.blob_service_client.set_service_properties(service_properties)
             
             return True

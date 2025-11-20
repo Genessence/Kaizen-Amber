@@ -428,6 +428,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                       variant={(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "outline" : "default"}
                       onClick={async (e) => { 
                         e.stopPropagation(); 
+                        e.preventDefault();
                         try {
                           const isCurrentlyBenchmarked = practice.is_benchmarked || isBenchmarked?.(practice.id);
                           if (isCurrentlyBenchmarked) {
@@ -435,13 +436,22 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                           } else {
                             await benchmarkMutation.mutateAsync(practice.id);
                           }
-                        } catch (error) {
+                          // Query invalidation is handled by the mutation hooks
+                        } catch (error: any) {
                           console.error('Failed to toggle benchmark:', error);
+                          // Error toast is handled by mutation hooks
                         }
                       }}
                       disabled={benchmarkMutation.isPending || unbenchmarkMutation.isPending}
                     >
-                      {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmark" : "Benchmark"}
+                      {benchmarkMutation.isPending || unbenchmarkMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmarking..." : "Benchmarking..."}
+                        </>
+                      ) : (
+                        (practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmark" : "Benchmark"
+                      )}
                     </Button>
                   )}
                 </div>

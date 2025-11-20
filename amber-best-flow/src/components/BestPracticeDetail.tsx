@@ -24,8 +24,9 @@ import {
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 import { useBestPractice } from "@/hooks/useBestPractices";
 import { usePracticeQuestions, useAskQuestion, useAnswerQuestion } from "@/hooks/useQuestions";
+import { usePracticeImages } from "@/hooks/usePracticeImages";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface BestPracticeDetailProps {
@@ -48,6 +49,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   
   // Fetch questions for this practice
   const { data: questionsData = [], isLoading: questionsLoading } = usePracticeQuestions(practiceId);
+  
+  // Fetch images for this practice
+  const { data: imagesData = [], isLoading: imagesLoading } = usePracticeImages(practiceId);
   
   // Q&A mutations
   const askQuestionMutation = useAskQuestion();
@@ -103,7 +107,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     beforeImage: (apiPractice || propPractice).beforeImage,
     afterImage: (apiPractice || propPractice).afterImage,
     is_benchmarked: (apiPractice || propPractice).is_benchmarked ?? isBenchmarked,
-    images: (apiPractice || propPractice).images || []
+    images: imagesData.length > 0 ? imagesData : ((apiPractice || propPractice).images || [])
   } : {
     id: "BP-001",
     title: "Automated Quality Inspection System Implementation",
@@ -193,13 +197,29 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <Download className="h-4 w-4 mr-2" />
             Download PDF
           </Button>
-          <Button variant="outline" size="sm">
+          {/* Helpful button - removed mock data, can be implemented later if backend supports it */}
+          {/* <Button variant="outline" size="sm">
             <ThumbsUp className="h-4 w-4 mr-2" />
-            Helpful (12)
-          </Button>
-          <Button size="sm" onClick={onToggleBenchmark}>
-            {isBenchmarked ? "Unbenchmark" : "Benchmark"}
-          </Button>
+            Helpful ({practice.helpful_count || 0})
+          </Button> */}
+          {/* Benchmark button - Only visible to HQ users */}
+          {userRole === "hq" && (
+            <Button 
+              size="sm" 
+              variant={practice.is_benchmarked ? "outline" : "default"}
+              onClick={handleBenchmarkToggle}
+              disabled={benchmarkMutation.isPending || unbenchmarkMutation.isPending}
+            >
+              {benchmarkMutation.isPending || unbenchmarkMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {practice.is_benchmarked ? "Unbenchmarking..." : "Benchmarking..."}
+                </>
+              ) : (
+                practice.is_benchmarked ? "Unbenchmark" : "Benchmark"
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -287,40 +307,64 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <Card className="border-dashed">
               <CardContent className="p-4">
                 <p className="font-medium mb-3 text-center">Before Implementation</p>
-                {practice.beforeImage ? (
-                  <div className="rounded-lg overflow-hidden border bg-muted/20">
-                    <img 
-                      src={practice.beforeImage} 
-                      alt="Before Implementation" 
-                      className="w-full h-auto object-contain max-h-96"
-                    />
-                  </div>
-                ) : (
+                {imagesLoading ? (
                   <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
-                    <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                    <Loader2 className="h-12 w-12 mx-auto text-muted-foreground animate-spin" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
-                )}
+                ) : (() => {
+                  const beforeImage = practice.images?.find(img => img.image_type === 'before');
+                  return beforeImage?.blob_url ? (
+                    <div className="rounded-lg overflow-hidden border bg-muted/20">
+                      <img 
+                        src={beforeImage.blob_url} 
+                        alt="Before Implementation" 
+                        className="w-full h-auto object-contain max-h-96"
+                        onError={(e) => {
+                          console.error('Failed to load before image:', beforeImage.blob_url);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
+                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
             
             <Card className="border-dashed">
               <CardContent className="p-4">
                 <p className="font-medium mb-3 text-center">After Implementation</p>
-                {practice.afterImage ? (
-                  <div className="rounded-lg overflow-hidden border bg-success/5">
-                    <img 
-                      src={practice.afterImage} 
-                      alt="After Implementation" 
-                      className="w-full h-auto object-contain max-h-96"
-                    />
-                  </div>
-                ) : (
+                {imagesLoading ? (
                   <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
-                    <ImageIcon className="h-12 w-12 mx-auto text-success" />
-                    <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                    <Loader2 className="h-12 w-12 mx-auto text-success animate-spin" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
-                )}
+                ) : (() => {
+                  const afterImage = practice.images?.find(img => img.image_type === 'after');
+                  return afterImage?.blob_url ? (
+                    <div className="rounded-lg overflow-hidden border bg-success/5">
+                      <img 
+                        src={afterImage.blob_url} 
+                        alt="After Implementation" 
+                        className="w-full h-auto object-contain max-h-96"
+                        onError={(e) => {
+                          console.error('Failed to load after image:', afterImage.blob_url);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
+                      <ImageIcon className="h-12 w-12 mx-auto text-success" />
+                      <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

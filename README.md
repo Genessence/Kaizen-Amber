@@ -452,4 +452,3 @@ Proprietary - Amber Enterprises India Limited
 **Deploy it**: See `backend/DEPLOYMENT_GUIDE.md`  
 **Questions?**: Check the comprehensive documentation!
 
-# Kaizen-Amber

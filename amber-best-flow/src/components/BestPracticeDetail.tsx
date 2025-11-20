@@ -1,0 +1,500 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { 
+  ArrowLeft,
+  CheckCircle, 
+  Download, 
+  MessageCircle,
+  Send,
+  Calendar,
+  Building2,
+  User,
+  FileText,
+  Image as ImageIcon,
+  ThumbsUp,
+  AlertCircle,
+  Clock,
+  Shield,
+  Loader2
+} from "lucide-react";
+import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
+import { useBestPractice } from "@/hooks/useBestPractices";
+import { usePracticeQuestions, useAskQuestion, useAnswerQuestion } from "@/hooks/useQuestions";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+interface BestPracticeDetailProps {
+  userRole: "plant" | "hq";
+  practice?: any;
+  isBenchmarked?: boolean;
+  onToggleBenchmark?: () => void;
+}
+
+const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, onToggleBenchmark }: BestPracticeDetailProps) => {
+  const navigate = useNavigate();
+  // Get current user
+  const { user } = useAuth();
+  
+  // Fetch full practice details if we have an ID
+  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(propPractice?.id);
+  
+  // Get practice ID for questions hook
+  const practiceId = apiPractice?.id || propPractice?.id;
+  
+  // Fetch questions for this practice
+  const { data: questionsData = [], isLoading: questionsLoading } = usePracticeQuestions(practiceId);
+  
+  // Q&A mutations
+  const askQuestionMutation = useAskQuestion();
+  const answerQuestionMutation = useAnswerQuestion();
+  
+  // State for question/answer inputs
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
+  
+  // Use benchmark mutations
+  const benchmarkMutation = useBenchmarkPractice();
+  const unbenchmarkMutation = useUnbenchmarkPractice();
+
+  // Handle benchmark toggle
+  const handleBenchmarkToggle = async () => {
+    if (!practice?.id) return;
+
+    try {
+      if (practice.is_benchmarked) {
+        await unbenchmarkMutation.mutateAsync(practice.id);
+      } else {
+        await benchmarkMutation.mutateAsync(practice.id);
+      }
+      // Optionally call legacy callback
+      onToggleBenchmark?.();
+    } catch (error) {
+      // Error handled by mutation hook
+      console.error('Benchmark toggle failed:', error);
+    }
+  };
+
+  // Use API data if available, otherwise use prop data
+  const practice = (apiPractice || propPractice) ? {
+    id: (apiPractice || propPractice).id || "BP-001",
+    title: (apiPractice || propPractice).title || "Best Practice",
+    category: (apiPractice || propPractice).category_name || (apiPractice || propPractice).category || "Other",
+    submittedBy: (apiPractice || propPractice).submitted_by_name || (apiPractice || propPractice).submittedBy || "Unknown",
+    submitted_by_user_id: (apiPractice || propPractice).submitted_by_user_id,
+    plant: (apiPractice || propPractice).plant_name || (apiPractice || propPractice).plant || "Unknown Plant",
+    submittedDate: (apiPractice || propPractice).submitted_date || (apiPractice || propPractice).submittedDate || (apiPractice || propPractice).date || new Date().toISOString().split('T')[0],
+    approvedDate: (apiPractice || propPractice).approvedDate,
+    approvedBy: (apiPractice || propPractice).approvedBy,
+    copiedToPlants: (apiPractice || propPractice).copiedToPlants || [],
+    description: (apiPractice || propPractice).description || "",
+    problemStatement: (apiPractice || propPractice).problem_statement || (apiPractice || propPractice).problemStatement || "",
+    solution: (apiPractice || propPractice).solution || "",
+    benefits: Array.isArray((apiPractice || propPractice).benefits) ? (apiPractice || propPractice).benefits : [],
+    metrics: (apiPractice || propPractice).metrics || "",
+    implementation: (apiPractice || propPractice).implementation || "",
+    questions: (apiPractice || propPractice).question_count || (apiPractice || propPractice).questions || 0,
+    savings: (apiPractice || propPractice).savings,
+    areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented,
+    beforeImage: (apiPractice || propPractice).beforeImage,
+    afterImage: (apiPractice || propPractice).afterImage,
+    is_benchmarked: (apiPractice || propPractice).is_benchmarked ?? isBenchmarked,
+    images: (apiPractice || propPractice).images || []
+  } : {
+    id: "BP-001",
+    title: "Automated Quality Inspection System Implementation",
+    category: "Quality",
+    // removed approval status concept
+    submittedBy: "Rajesh Kumar",
+    plant: "Greater Noida (Ecotech 1)",
+    submittedDate: "2025-01-15",
+    approvedDate: "2025-01-18",
+    approvedBy: "Priya Sharma (HQ Admin)",
+    copiedToPlants: [
+      "Kanchipuram",
+      "Rajpura"
+    ],
+    description: "Implementation of an automated quality inspection system using computer vision to detect defects in manufactured components, reducing manual inspection time and improving accuracy.",
+    problemStatement: "Manual quality inspection was time-consuming, prone to human error, and created bottlenecks in the production line. Inspectors were spending 3-4 hours daily on repetitive visual checks.",
+    solution: "Deployed AI-powered computer vision system with high-resolution cameras at key inspection points. The system uses machine learning algorithms trained on defect patterns to automatically identify and classify defects.",
+    benefits: [
+      "95% reduction in inspection time",
+      "99.2% accuracy in defect detection",
+      "Eliminated production bottlenecks",
+      "Freed up 3 inspectors for other quality activities"
+    ],
+    metrics: "Cost savings: ₹2.5L annually, Time saved: 20 hours/week, Defect detection improved by 15%",
+    implementation: "Project completed in 6 weeks with IT team collaboration. Total investment: ₹8L with 4-month ROI.",
+    questions: 0
+  };
+
+  // Handle asking a question
+  const handleAskQuestion = async () => {
+    if (!newQuestionText.trim() || !practice?.id) return;
+    
+    try {
+      await askQuestionMutation.mutateAsync({
+        practiceId: practice.id,
+        questionText: newQuestionText.trim()
+      });
+      setNewQuestionText("");
+    } catch (error) {
+      // Error handled by mutation hook
+    }
+  };
+
+  // Handle answering a question
+  const handleAnswerQuestion = async (questionId: string) => {
+    const answerText = answerTexts[questionId];
+    if (!answerText?.trim() || !practice?.id) return;
+    
+    try {
+      await answerQuestionMutation.mutateAsync({
+        questionId,
+        answerText: answerText.trim(),
+        practiceId: practice.id
+      });
+      setAnswerTexts(prev => {
+        const updated = { ...prev };
+        delete updated[questionId];
+        return updated;
+      });
+    } catch (error) {
+      // Error handled by mutation hook
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center space-x-4">
+        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Best Practices
+        </Button>
+        
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">{practice.title}</h1>
+          <div className="flex items-center space-x-2 mt-1">
+            <Badge variant="outline" className="bg-category-quality/10 text-category-quality border-category-quality">
+              {practice.category}
+            </Badge>
+            {/* Approval badge removed */}
+            <span className="text-sm text-muted-foreground">ID: {practice.id}</span>
+          </div>
+        </div>
+
+        <div className="flex space-x-2">
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Download PDF
+          </Button>
+          <Button variant="outline" size="sm">
+            <ThumbsUp className="h-4 w-4 mr-2" />
+            Helpful (12)
+          </Button>
+          <Button size="sm" onClick={onToggleBenchmark}>
+            {isBenchmarked ? "Unbenchmark" : "Benchmark"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Practice Details */}
+      <Card className="shadow-soft hover:shadow-medium transition-smooth border border-border/50">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <span>Practice Details</span>
+            </CardTitle>
+            
+            {/* Approval actions removed */}
+          </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          {/* Metadata */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-accent/30 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Submitted by</p>
+                <p className="text-sm text-muted-foreground">{practice.submittedBy}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Plant</p>
+                <p className="text-sm text-muted-foreground">{practice.plant}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Submitted</p>
+                <p className="text-sm text-muted-foreground">{practice.submittedDate}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Horizontal Deployment Status */}
+          <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                <h4 className="font-medium">Horizontal Deployment</h4>
+              </div>
+              <Badge variant="outline" className="bg-primary/10 text-primary">
+                Copied to {practice.copiedToPlants?.length ?? 0} plant{(practice.copiedToPlants?.length === 1 ? "" : "s")}
+              </Badge>
+            </div>
+            {practice.copiedToPlants && Array.isArray(practice.copiedToPlants) && practice.copiedToPlants.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {practice.copiedToPlants.map((pl: string) => (
+                  <Badge key={pl} variant="outline" className="bg-muted/50">{pl}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <h4 className="font-medium mb-2">Overview</h4>
+            <p className="text-muted-foreground">{practice.description}</p>
+          </div>
+
+          {/* Problem Statement */}
+          <div>
+            <h4 className="font-medium mb-2">Problem Statement</h4>
+            <p className="text-muted-foreground">{practice.problemStatement}</p>
+          </div>
+
+          {/* Solution */}
+          <div>
+            <h4 className="font-medium mb-2">Solution</h4>
+            <p className="text-muted-foreground">{practice.solution}</p>
+          </div>
+
+          {/* Before/After Images */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-dashed">
+              <CardContent className="p-4">
+                <p className="font-medium mb-3 text-center">Before Implementation</p>
+                {practice.beforeImage ? (
+                  <div className="rounded-lg overflow-hidden border bg-muted/20">
+                    <img 
+                      src={practice.beforeImage} 
+                      alt="Before Implementation" 
+                      className="w-full h-auto object-contain max-h-96"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Card className="border-dashed">
+              <CardContent className="p-4">
+                <p className="font-medium mb-3 text-center">After Implementation</p>
+                {practice.afterImage ? (
+                  <div className="rounded-lg overflow-hidden border bg-success/5">
+                    <img 
+                      src={practice.afterImage} 
+                      alt="After Implementation" 
+                      className="w-full h-auto object-contain max-h-96"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto text-success" />
+                    <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Benefits & Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-medium mb-3">Key Benefits</h4>
+              <ul className="space-y-2">
+                {practice.benefits && Array.isArray(practice.benefits) && practice.benefits.length > 0 ? (
+                  practice.benefits.map((benefit, index) => (
+                    <li key={index} className="flex items-center space-x-2">
+                      <CheckCircle className="h-4 w-4 text-success" />
+                      <span className="text-sm">{benefit}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-sm text-muted-foreground">No benefits listed</li>
+                )}
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-medium mb-3">Measurable Impact</h4>
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <p className="text-sm">{practice.metrics}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Implementation Details */}
+          <div>
+            <h4 className="font-medium mb-2">Implementation Details</h4>
+            <p className="text-muted-foreground">{practice.implementation}</p>
+          </div>
+
+          {/* Approved info removed */}
+        </CardContent>
+      </Card>
+
+      {/* Q&A Section */}
+      <Card className="shadow-soft hover:shadow-medium transition-smooth border border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            <span>Questions & Answers</span>
+            <Badge variant="outline">{questionsData.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          {/* Ask Question (for authenticated users, not the author) */}
+          {practice?.id && user && practice.submitted_by_user_id !== user.id && (
+            <div className="space-y-3">
+              <h4 className="font-medium">Ask a Question</h4>
+              <Textarea
+                placeholder="Ask the author about implementation details, challenges, or applicability to your plant..."
+                className="min-h-20"
+                value={newQuestionText}
+                onChange={(e) => setNewQuestionText(e.target.value)}
+                disabled={askQuestionMutation.isPending}
+              />
+              <Button 
+                size="sm"
+                onClick={handleAskQuestion}
+                disabled={!newQuestionText.trim() || askQuestionMutation.isPending}
+              >
+                {askQuestionMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit Question
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Questions List */}
+          {questionsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : questionsData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">No questions yet. Be the first to ask!</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {questionsData.map((q) => (
+                <div key={q.id} className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {q.asked_by_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <p className="font-medium text-sm">{q.asked_by_name}</p>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(q.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{q.question_text}</p>
+                    </div>
+                  </div>
+
+                  {q.answer_text ? (
+                    <div className="ml-11 p-4 bg-accent/30 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Shield className="h-4 w-4 text-primary" />
+                        <p className="font-medium text-sm text-primary">
+                          {q.answered_by_name || "Author"} Response
+                        </p>
+                        {q.answered_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(q.answered_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm">{q.answer_text}</p>
+                    </div>
+                  ) : user && practice?.submitted_by_user_id === user.id ? (
+                    // Author can answer
+                    <div className="ml-11 space-y-2">
+                      <Textarea
+                        placeholder="Provide your response to help other plants..."
+                        className="min-h-16"
+                        value={answerTexts[q.id] || ""}
+                        onChange={(e) => setAnswerTexts(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        disabled={answerQuestionMutation.isPending}
+                      />
+                      <Button 
+                        size="sm"
+                        onClick={() => handleAnswerQuestion(q.id)}
+                        disabled={!answerTexts[q.id]?.trim() || answerQuestionMutation.isPending}
+                      >
+                        {answerQuestionMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Posting...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Reply
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="ml-11 p-3 bg-warning/5 rounded-lg border border-warning/20">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-warning" />
+                        <p className="text-sm text-warning">Awaiting author response</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default BestPracticeDetail;

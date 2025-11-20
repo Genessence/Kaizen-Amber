@@ -1,0 +1,33 @@
+# Core
+fastapi
+uvicorn
+python-dotenv
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+bcrypt==4.3.0
+
+# Validation
+pydantic
+pydantic-settings
+email-validator
+
+# Authentication
+python-jose
+passlib
+python-multipart
+
+# Azure
+azure-storage-blob
+azure-identity
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+
+# Utilities
+python-dateutil
+

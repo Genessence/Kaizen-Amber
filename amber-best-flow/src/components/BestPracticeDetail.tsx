@@ -101,13 +101,15 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     benefits: Array.isArray((apiPractice || propPractice).benefits) ? (apiPractice || propPractice).benefits : [],
     metrics: (apiPractice || propPractice).metrics || "",
     implementation: (apiPractice || propPractice).implementation || "",
+    investment: (apiPractice || propPractice).investment || "",
     questions: (apiPractice || propPractice).question_count || (apiPractice || propPractice).questions || 0,
     savings: (apiPractice || propPractice).savings,
-    areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented,
+    areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented || "",
     beforeImage: (apiPractice || propPractice).beforeImage,
     afterImage: (apiPractice || propPractice).afterImage,
     is_benchmarked: (apiPractice || propPractice).is_benchmarked ?? isBenchmarked,
-    images: imagesData.length > 0 ? imagesData : ((apiPractice || propPractice).images || [])
+    images: imagesData.length > 0 ? imagesData : ((apiPractice || propPractice).images || []),
+    documents: (apiPractice || propPractice).documents || []
   } : {
     id: "BP-001",
     title: "Automated Quality Inspection System Implementation",
@@ -152,7 +154,10 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   };
 
   // Handle answering a question
-  const handleAnswerQuestion = async (questionId: string) => {
+  const handleAnswerQuestion = async (questionId: string, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    
     const answerText = answerTexts[questionId];
     if (!answerText?.trim() || !practice?.id) return;
     
@@ -290,6 +295,14 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <p className="text-muted-foreground">{practice.description}</p>
           </div>
 
+          {/* Area Implemented In */}
+          {practice.areaImplemented && (
+            <div>
+              <h4 className="font-medium mb-2">Area Implemented In</h4>
+              <p className="text-muted-foreground">{practice.areaImplemented}</p>
+            </div>
+          )}
+
           {/* Problem Statement */}
           <div>
             <h4 className="font-medium mb-2">Problem Statement</h4>
@@ -372,18 +385,29 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
           {/* Benefits & Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-medium mb-3">Key Benefits</h4>
+              <h4 className="font-medium mb-3">Key Benefits Achieved</h4>
               <ul className="space-y-2">
-                {practice.benefits && Array.isArray(practice.benefits) && practice.benefits.length > 0 ? (
-                  practice.benefits.map((benefit, index) => (
-                    <li key={index} className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-success" />
-                      <span className="text-sm">{benefit}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-sm text-muted-foreground">No benefits listed</li>
-                )}
+                {(() => {
+                  // Handle both array and string formats
+                  let benefitsList: string[] = [];
+                  if (Array.isArray(practice.benefits) && practice.benefits.length > 0) {
+                    benefitsList = practice.benefits;
+                  } else if (typeof practice.benefits === 'string' && practice.benefits.trim()) {
+                    // Split by newlines if it's a string
+                    benefitsList = practice.benefits.split('\n').filter(b => b.trim());
+                  }
+                  
+                  return benefitsList.length > 0 ? (
+                    benefitsList.map((benefit, index) => (
+                      <li key={index} className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-success" />
+                        <span className="text-sm">{benefit}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-muted-foreground">No benefits listed</li>
+                  );
+                })()}
               </ul>
             </div>
             
@@ -395,10 +419,83 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             </div>
           </div>
 
+          {/* Investment in the Best Practice */}
+          {practice.investment && (
+            <div>
+              <h4 className="font-medium mb-2">Investment in the Best Practice</h4>
+              <p className="text-muted-foreground">{practice.investment}</p>
+            </div>
+          )}
+
           {/* Implementation Details */}
           <div>
-            <h4 className="font-medium mb-2">Implementation Details</h4>
-            <p className="text-muted-foreground">{practice.implementation}</p>
+            <h4 className="font-medium mb-2">Implementation Timeline & Resources</h4>
+            <p className="text-muted-foreground">{practice.implementation || "Not specified"}</p>
+          </div>
+
+          {/* Supporting Documents */}
+          <div>
+            <h4 className="font-medium mb-3">Supporting Documents</h4>
+            {practice.documents && Array.isArray(practice.documents) && practice.documents.length > 0 ? (
+              <div className="space-y-2">
+                {practice.documents.map((doc: any) => {
+                  // Format file size
+                  const formatFileSize = (bytes: number): string => {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+                  };
+
+                  // Get file icon based on content type
+                  const getFileIcon = (contentType: string) => {
+                    if (contentType?.includes('pdf')) return '📄';
+                    if (contentType?.includes('word') || contentType?.includes('document')) return '📝';
+                    if (contentType?.includes('powerpoint') || contentType?.includes('presentation')) return '📊';
+                    if (contentType?.includes('excel') || contentType?.includes('spreadsheet')) return '📈';
+                    return '📎';
+                  };
+
+                  return (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3 flex-1">
+                        <span className="text-2xl">{getFileIcon(doc.content_type)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{doc.document_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(doc.file_size || 0)}
+                            {doc.content_type && ` • ${doc.content_type.split('/')[1]?.toUpperCase() || 'File'}`}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (doc.blob_url) {
+                            window.open(doc.blob_url, '_blank');
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
+                <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                  <FileText className="h-5 w-5" />
+                  <p className="text-sm">No supporting documents available</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Approved info removed */}
@@ -416,38 +513,76 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
         </CardHeader>
         
         <CardContent className="space-y-6">
-          {/* Ask Question (for authenticated users, not the author) */}
-          {practice?.id && user && practice.submitted_by_user_id !== user.id && (
-            <div className="space-y-3">
-              <h4 className="font-medium">Ask a Question</h4>
-              <Textarea
-                placeholder="Ask the author about implementation details, challenges, or applicability to your plant..."
-                className="min-h-20"
-                value={newQuestionText}
-                onChange={(e) => setNewQuestionText(e.target.value)}
-                disabled={askQuestionMutation.isPending}
-              />
-              <Button 
-                size="sm"
-                onClick={handleAskQuestion}
-                disabled={!newQuestionText.trim() || askQuestionMutation.isPending}
-              >
-                {askQuestionMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Submit Question
-                  </>
-                )}
-              </Button>
+          {/* Ask Question Section - Always visible for authenticated users */}
+          {practice?.id && user ? (
+            (() => {
+              // Check if user is the author - compare IDs as strings to handle UUID format differences
+              const isAuthor = practice.submitted_by_user_id && user.id && 
+                String(practice.submitted_by_user_id).toLowerCase() === String(user.id).toLowerCase();
+              
+              if (isAuthor) {
+                return (
+                  <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
+                    <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                      <MessageCircle className="h-5 w-5" />
+                      <p className="text-sm">You are the author of this practice. Other users can ask questions here.</p>
+                    </div>
+                  </div>
+              );
+              }
+              
+              // Show Q&A form for non-authors
+              return (
+                <div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium flex items-center space-x-2">
+                      <MessageCircle className="h-5 w-5 text-primary" />
+                      <span>Ask a Question</span>
+                    </h4>
+                  </div>
+                  <Textarea
+                    placeholder="Ask the author about implementation details, challenges, or applicability to your plant..."
+                    className="min-h-24 bg-background"
+                    value={newQuestionText}
+                    onChange={(e) => setNewQuestionText(e.target.value)}
+                    disabled={askQuestionMutation.isPending}
+                  />
+                  <div className="flex justify-end">
+                    <Button 
+                      size="sm"
+                      onClick={handleAskQuestion}
+                      disabled={!newQuestionText.trim() || askQuestionMutation.isPending}
+                      className="min-w-[140px]"
+                    >
+                      {askQuestionMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Submit Question
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
+              <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                <AlertCircle className="h-5 w-5" />
+                <p className="text-sm">Please log in to ask questions about this practice.</p>
+              </div>
             </div>
           )}
 
-          <Separator />
+          {practice?.id && user && practice.submitted_by_user_id && user.id && 
+           String(practice.submitted_by_user_id).toLowerCase() !== String(user.id).toLowerCase() && (
+            <Separator />
+          )}
 
           {/* Questions List */}
           {questionsLoading ? (
@@ -506,8 +641,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                         disabled={answerQuestionMutation.isPending}
                       />
                       <Button 
+                        type="button"
                         size="sm"
-                        onClick={() => handleAnswerQuestion(q.id)}
+                        onClick={(e) => handleAnswerQuestion(q.id, e)}
                         disabled={!answerTexts[q.id]?.trim() || answerQuestionMutation.isPending}
                       >
                         {answerQuestionMutation.isPending ? (

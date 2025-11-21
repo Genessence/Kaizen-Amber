@@ -1,11 +1,12 @@
 """FastAPI application entry point."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api.v1.api import api_router
+from app.api.v1.endpoints.websocket import websocket_notifications
 
 # Create FastAPI application
 app = FastAPI(
@@ -17,13 +18,16 @@ app = FastAPI(
 )
 
 # Configure CORS
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],  # or ["http://localhost:3000"]
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # <-- VERY IMPORTANT
     allow_headers=["*"],
 )
+
 
 
 @app.get("/", tags=["Health"])
@@ -52,6 +56,12 @@ async def health_check():
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+
+# Add WebSocket endpoint (must be registered before router or separately)
+@app.websocket("/api/v1/ws/notifications")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+    """WebSocket endpoint wrapper."""
+    await websocket_notifications(websocket, token)
 
 
 if __name__ == "__main__":

@@ -37,6 +37,9 @@ import type {
   PresignedUrlResponse,
   PracticeImage,
   PracticeDocument,
+  Notification,
+  NotificationListResponse,
+  UnreadCountResponse,
 } from '@/types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -55,13 +58,35 @@ class APIService {
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      // Ensure method is explicitly set and preserved (method must come after spreading options)
+      const method = options.method || 'GET';
+      const requestOptions: RequestInit = {
         ...options,
+        method: method, // Set method after spreading to ensure it's not overwritten
+        mode: 'cors', // Explicitly set CORS mode
+        credentials: 'include', // Include credentials for CORS
         headers: {
           'Content-Type': 'application/json',
           ...this.getAuthHeader(),
           ...options.headers,
         },
+      };
+      
+      console.log('API Request:', { 
+        endpoint, 
+        method, 
+        url: `${API_BASE_URL}${endpoint}`,
+        headers: requestOptions.headers,
+        body: requestOptions.body
+      });
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+      
+      console.log('API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        ok: response.ok
       });
 
       // Handle 401 Unauthorized - redirect to login
@@ -78,8 +103,42 @@ class APIService {
         throw new Error(errorData.detail || `Request failed with status ${response.status}`);
       }
 
-      return response.json();
+      // Parse JSON response
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const jsonData = await response.json();
+          console.log('Parsed JSON response:', jsonData);
+          return jsonData;
+        } else {
+          // If not JSON, try to get text
+          const textData = await response.text();
+          console.warn('Non-JSON response received:', textData);
+          throw new Error(`Expected JSON response but got ${contentType || 'unknown content type'}`);
+        }
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        throw new Error(`Failed to parse response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
     } catch (error) {
+      console.error('API Request Error:', {
+        endpoint,
+        method,
+        url: `${API_BASE_URL}${endpoint}`,
+        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof TypeError ? 'TypeError (likely CORS/Network)' : 'Other',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        // NetworkError or CORS error
+        throw new Error(
+          `Network error: Unable to reach the server. This may be a CORS issue. ` +
+          `Please check: (1) Backend server is running, (2) CORS is configured for ${window.location.origin}, ` +
+          `(3) Network connectivity. Original error: ${error.message}`
+        );
+      }
+      
       if (error instanceof Error) {
         throw error;
       }
@@ -389,10 +448,20 @@ class APIService {
    * Answer a question
    */
   async answerQuestion(questionId: string, answerText: string): Promise<Question> {
-    return this.request<Question>(`/questions/${questionId}/answer`, {
-      method: 'PATCH',
-      body: JSON.stringify({ answer_text: answerText }),
-    });
+    const endpoint = `/questions/${questionId}/answer`;
+    console.log('Answering question:', { questionId, endpoint, method: 'PATCH' });
+    
+    try {
+      const result = await this.request<Question>(endpoint, {
+        method: 'PATCH',
+        body: JSON.stringify({ answer_text: answerText }),
+      });
+      console.log('Answer question success:', result);
+      return result;
+    } catch (error) {
+      console.error('Answer question error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -775,6 +844,48 @@ class APIService {
       blob_url: blob_url,
       file_size: file.size,
       content_type: file.type,
+    });
+  }
+
+  /**
+   * Get user's notifications
+   */
+  async getNotifications(params?: {
+    limit?: number;
+    offset?: number;
+    is_read?: boolean;
+  }): Promise<NotificationListResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+    if (params?.is_read !== undefined) queryParams.append('is_read', params.is_read.toString());
+    
+    const query = queryParams.toString();
+    return this.request<NotificationListResponse>(`/notifications${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get unread notification count
+   */
+  async getUnreadNotificationCount(): Promise<UnreadCountResponse> {
+    return this.request<UnreadCountResponse>('/notifications/unread-count');
+  }
+
+  /**
+   * Mark notification as read
+   */
+  async markNotificationAsRead(notificationId: string): Promise<Notification> {
+    return this.request<Notification>(`/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+    });
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  async markAllNotificationsAsRead(): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/notifications/read-all', {
+      method: 'PATCH',
     });
   }
 }

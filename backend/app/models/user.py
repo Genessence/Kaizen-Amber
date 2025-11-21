@@ -30,6 +30,7 @@ class User(Base):
     benchmarked_practices = relationship("BenchmarkedPractice", back_populates="benchmarked_by")
     asked_questions = relationship("PracticeQuestion", back_populates="asked_by", foreign_keys="PracticeQuestion.asked_by_user_id")
     answered_questions = relationship("PracticeQuestion", back_populates="answered_by", foreign_keys="PracticeQuestion.answered_by_user_id")
+    notifications = relationship("Notification", back_populates="user", foreign_keys="Notification.user_id", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.email} ({self.role})>"

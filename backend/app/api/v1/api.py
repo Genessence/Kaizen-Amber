@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     questions,
     leaderboard,
     analytics,
+    notifications,
 )
 
 api_router = APIRouter()
@@ -28,4 +29,5 @@ api_router.include_router(copy_implement.router, prefix="/copy", tags=["Copy & I
 api_router.include_router(questions.router, prefix="/questions", tags=["Questions"])
 api_router.include_router(leaderboard.router, prefix="/leaderboard", tags=["Leaderboard"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 

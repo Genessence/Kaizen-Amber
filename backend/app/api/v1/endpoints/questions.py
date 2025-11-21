@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.plant import Plant
 from app.models.best_practice import BestPractice
 from app.models.practice_question import PracticeQuestion
+from app.models.notification import Notification
 from app.schemas.question import (
     QuestionCreate,
     QuestionAnswer,
@@ -18,6 +19,7 @@ from app.schemas.question import (
     QuestionWithPractice
 )
 from app.core.dependencies import get_current_active_user
+from app.core.websocket_manager import websocket_manager
 
 router = APIRouter()
 
@@ -105,6 +107,49 @@ async def ask_question(
     db.commit()
     db.refresh(question)
     
+    # Create notification for practice author (plant user) when question is asked
+    # This notification will be visible to plant users in their notification center
+    # Only create if practice has an author (submitted_by_user_id is not None)
+    # and the question asker is different from the practice author
+    if practice.submitted_by_user_id and practice.submitted_by_user_id != current_user.id:
+        notification = Notification(
+            user_id=practice.submitted_by_user_id,  # Notify the plant user (practice author)
+            type='question_asked',  # Plant users will see this notification type
+            title=f"New question on '{practice.title}'",
+            message=f"{current_user.full_name} asked a question on '{practice.title}'",
+            related_practice_id=practice_id,
+            related_question_id=question.id
+        )
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+        
+        # Broadcast notification via WebSocket
+        try:
+            await websocket_manager.send_to_user(
+                practice.submitted_by_user_id,
+                {
+                    "type": "notification",
+                    "data": {
+                        "id": str(notification.id),
+                        "user_id": str(notification.user_id),
+                        "type": notification.type,
+                        "title": notification.title,
+                        "message": notification.message,
+                        "related_practice_id": str(notification.related_practice_id),
+                        "related_question_id": str(notification.related_question_id) if notification.related_question_id else None,
+                        "practice_title": practice.title,
+                        "is_read": notification.is_read,
+                        "created_at": notification.created_at.isoformat(),
+                        "updated_at": notification.updated_at.isoformat(),
+                    },
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Error broadcasting notification via WebSocket: {e}")
+    
     # Build response
     asked_by = db.query(User).filter(User.id == current_user.id).first()
     
@@ -120,6 +165,7 @@ async def ask_question(
         "answered_at": question.answered_at,
         "created_at": question.created_at
     }
+
 
 
 @router.patch("/{question_id}/answer", response_model=QuestionResponse)
@@ -167,21 +213,59 @@ async def answer_question(
     db.commit()
     db.refresh(question)
     
+    # Create notification for question asker (admin) when question is answered
+    # This notification will be visible to admins in their notification center
+    # Only create if the answerer is different from the question asker
+    if question.asked_by_user_id != current_user.id:
+        notification = Notification(
+            user_id=question.asked_by_user_id,  # Notify the admin (question asker)
+            type='question_answered',  # Admins will see this notification type
+            title=f"Your question on '{practice.title}' was answered",
+            message=f"{current_user.full_name} answered your question on '{practice.title}'",
+            related_practice_id=practice.id,
+            related_question_id=question.id
+        )
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+        
+        # Broadcast notification via WebSocket
+        await websocket_manager.send_to_user(
+            question.asked_by_user_id,
+            {
+                "type": "notification",
+                "data": {
+                    "id": str(notification.id),
+                    "user_id": str(notification.user_id),
+                    "type": notification.type,
+                    "title": notification.title,
+                    "message": notification.message,
+                    "related_practice_id": str(notification.related_practice_id),
+                    "related_question_id": str(notification.related_question_id) if notification.related_question_id else None,
+                    "practice_title": practice.title,
+                    "is_read": notification.is_read,
+                    "created_at": notification.created_at.isoformat(),
+                    "updated_at": notification.updated_at.isoformat(),
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+    
     # Build response
     asked_by = db.query(User).filter(User.id == question.asked_by_user_id).first()
     answered_by = db.query(User).filter(User.id == current_user.id).first()
     
     return {
-        "id": question.id,
-        "practice_id": question.practice_id,
-        "asked_by_user_id": question.asked_by_user_id,
+        "id": str(question.id),
+        "practice_id": str(question.practice_id),
+        "asked_by_user_id": str(question.asked_by_user_id),
         "asked_by_name": asked_by.full_name if asked_by else "Unknown",
         "question_text": question.question_text,
         "answer_text": question.answer_text,
-        "answered_by_user_id": question.answered_by_user_id,
+        "answered_by_user_id": str(question.answered_by_user_id) if question.answered_by_user_id else None,
         "answered_by_name": answered_by.full_name if answered_by else "Unknown",
-        "answered_at": question.answered_at,
-        "created_at": question.created_at
+        "answered_at": question.answered_at.isoformat() if question.answered_at else None,
+        "created_at": question.created_at.isoformat() if question.created_at else None
     }
 
 

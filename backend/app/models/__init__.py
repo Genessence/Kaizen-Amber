@@ -11,6 +11,7 @@ from app.models.copied_practice import CopiedPractice
 from app.models.practice_question import PracticeQuestion
 from app.models.monthly_savings import MonthlySavings
 from app.models.leaderboard_entry import LeaderboardEntry
+from app.models.notification import Notification
 
 __all__ = [
     "User",
@@ -24,5 +25,6 @@ __all__ = [
     "PracticeQuestion",
     "MonthlySavings",
     "LeaderboardEntry",
+    "Notification",
 ]
 

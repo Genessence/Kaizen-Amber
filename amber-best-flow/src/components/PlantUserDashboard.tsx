@@ -355,213 +355,43 @@ const PlantUserDashboard = ({
   // Use leaderboard from API with fallback to base data
   const mergedLeaderboard = useMemo(() => {
     if (leaderboardData && leaderboardData.length > 0) {
-      return leaderboardData;
+      // Transform API data to match component expectations
+      return leaderboardData.map((entry: any) => ({
+        plant_id: entry.plant_id,
+        plant_name: entry.plant_name,
+        plant: entry.plant_name, // For compatibility
+        totalPoints: entry.total_points,
+        total_points: entry.total_points,
+        rank: entry.rank,
+        breakdown: (entry.breakdown || []).map((b: any) => ({
+          type: b.type === "Origin" ? "Origin" : "Copier",
+          points: b.points,
+          date: b.date,
+          bpTitle: b.bp_title,
+          bp_title: b.bp_title,
+        })),
+      }));
     }
-    // Fallback to prop data or base data
+    // Fallback to prop data if provided
     if (leaderboard && leaderboard.length > 0) {
-      return leaderboard;
+      // Transform props data if provided
+      return leaderboard.map((entry: any) => ({
+        plant_id: entry.plant_id || entry.plant,
+        plant_name: entry.plant_name || entry.plant,
+        plant: entry.plant_name || entry.plant,
+        totalPoints: entry.totalPoints || entry.total_points,
+        total_points: entry.totalPoints || entry.total_points,
+        rank: entry.rank,
+        breakdown: (entry.breakdown || []).map((b: any) => ({
+          type: b.type,
+          points: b.points,
+          date: b.date,
+          bpTitle: b.bpTitle || b.bp_title,
+          bp_title: b.bpTitle || b.bp_title,
+        })),
+      }));
     }
-    // Base leaderboard for fallback
-    return [
-      {
-        plant: "Greater Noida (Ecotech 1)",
-        totalPoints: 36,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-02-12",
-            bpTitle: "Digital Production Control Tower",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-02-20",
-            bpTitle: "Assembly Line Cobots",
-          },
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-01-15",
-            bpTitle: "Automated Quality Inspection",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-03-10",
-            bpTitle: "Safety Protocol for Chemical Handling",
-          },
-          {
-            type: "Origin",
-            points: 6,
-            date: "2025-03-18",
-            bpTitle: "Waste Reduction Initiative",
-          },
-        ],
-      },
-      {
-        plant: "Kanchipuram",
-        totalPoints: 28,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-05-20",
-            bpTitle: "IoT Sensor Implementation",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-04-12",
-            bpTitle: "Digital Production Control Tower",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-05-05",
-            bpTitle: "Assembly Line Cobots",
-          },
-          {
-            type: "Origin",
-            points: 8,
-            date: "2025-03-25",
-            bpTitle: "Lean Packaging Redesign",
-          },
-        ],
-      },
-      {
-        plant: "Rajpura",
-        totalPoints: 26,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-02-28",
-            bpTitle: "Green Energy Dashboard",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-03-22",
-            bpTitle: "ESG Compliance Monitoring Program",
-          },
-          {
-            type: "Origin",
-            points: 6,
-            date: "2025-01-30",
-            bpTitle: "Smart Inventory Tagging",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-04-18",
-            bpTitle: "Assembly Line Cobots",
-          },
-        ],
-      },
-      {
-        plant: "Shahjahanpur",
-        totalPoints: 22,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-06-14",
-            bpTitle: "Digital Production Control Tower",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-05-04",
-            bpTitle: "IoT Sensor Implementation",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-02-15",
-            bpTitle: "Waste Reduction Initiative",
-          },
-          {
-            type: "Origin",
-            points: 2,
-            date: "2025-03-02",
-            bpTitle: "Visual Management Boards",
-          },
-        ],
-      },
-      {
-        plant: "Supa",
-        totalPoints: 20,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-03-10",
-            bpTitle: "Safety Protocol for Chemical Handling",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-02-25",
-            bpTitle: "Digital Production Control Tower",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-04-05",
-            bpTitle: "IoT Sensor Implementation",
-          },
-        ],
-      },
-      {
-        plant: "Ranjangaon",
-        totalPoints: 19,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-04-08",
-            bpTitle: "Production Line Optimization",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-04-22",
-            bpTitle: "Assembly Line Cobots",
-          },
-          {
-            type: "Copier",
-            points: 4,
-            date: "2025-05-26",
-            bpTitle: "ESG Compliance Monitoring Program",
-          },
-        ],
-      },
-      {
-        plant: "Ponneri",
-        totalPoints: 18,
-        breakdown: [
-          {
-            type: "Origin",
-            points: 10,
-            date: "2025-02-09",
-            bpTitle: "ESG Compliance Monitoring Program",
-          },
-          {
-            type: "Copier",
-            points: 5,
-            date: "2025-03-18",
-            bpTitle: "Waste Reduction Initiative",
-          },
-          {
-            type: "Copier",
-            points: 3,
-            date: "2025-05-12",
-            bpTitle: "Safety Protocol for Chemical Handling",
-          },
-        ],
-      },
-    ];
+    return [];
   }, [leaderboardData, leaderboard]);
 
   const confirmCopyImplement = () => {
@@ -1446,6 +1276,10 @@ const PlantUserDashboard = ({
             {leaderboardLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : mergedLeaderboard.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No leaderboard data available</p>
               </div>
             ) : (
               (() => {

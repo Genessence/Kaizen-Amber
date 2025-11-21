@@ -14,6 +14,7 @@ from app.models.category import Category
 from app.models.best_practice import BestPractice
 from app.models.benchmarked_practice import BenchmarkedPractice
 from app.models.copied_practice import CopiedPractice
+from app.models.notification import Notification
 from app.schemas.benchmarking import (
     BenchmarkCreate,
     BenchmarkResponse,
@@ -70,6 +71,43 @@ async def benchmark_practice(
     db.add(benchmarked)
     db.commit()
     db.refresh(benchmarked)
+    
+    # Create notification for practice author (only if plant user, not HQ admin)
+    practice_author = db.query(User).filter(User.id == practice.submitted_by_user_id).first()
+    if practice_author and practice_author.role == "plant":
+        notification = Notification(
+            user_id=practice.submitted_by_user_id,
+            type='practice_benchmarked',
+            title=f"Practice benchmarked: '{practice.title}'",
+            message=f"Your practice '{practice.title}' has been benchmarked",
+            related_practice_id=practice_id,
+            related_question_id=None
+        )
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+        
+        # Broadcast notification via WebSocket
+        await websocket_manager.send_to_user(
+            practice.submitted_by_user_id,
+            {
+                "type": "notification",
+                "data": {
+                    "id": str(notification.id),
+                    "user_id": str(notification.user_id),
+                    "type": notification.type,
+                    "title": notification.title,
+                    "message": notification.message,
+                    "related_practice_id": str(notification.related_practice_id),
+                    "related_question_id": None,
+                    "practice_title": practice.title,
+                    "is_read": notification.is_read,
+                    "created_at": notification.created_at.isoformat(),
+                    "updated_at": notification.updated_at.isoformat(),
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
     
     return benchmarked
 

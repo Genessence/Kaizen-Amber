@@ -1,6 +1,6 @@
 # Core
 fastapi
-uvicorn
+uvicorn[standard]
 python-dotenv
 
 # Database

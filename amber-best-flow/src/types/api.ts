@@ -245,6 +245,39 @@ export interface Question {
   created_at: string;
 }
 
+// ============= Notification Types =============
+
+export type NotificationType = 'question_asked' | 'question_answered' | 'practice_benchmarked';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  related_practice_id: string;
+  related_question_id?: string;
+  practice_title?: string;
+  is_read: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationListResponse {
+  success: boolean;
+  data: Notification[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+}
+
+export interface UnreadCountResponse {
+  unread_count: number;
+}
+
 // ============= Leaderboard Types =============
 
 export type EntryType = "Origin" | "Copier";

@@ -111,87 +111,45 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
   const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
 
-  // Base leaderboard to keep table sizable; merge dynamic updates
-  const baseLeaderboard = useMemo(() => ([
-    { 
-      plant: "Greater Noida (Ecotech 1)", 
-      totalPoints: 36, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-02-12", bpTitle: "Digital Production Control Tower" },
-        { type: "Copier", points: 5, date: "2025-02-20", bpTitle: "Assembly Line Cobots" },
-        { type: "Origin", points: 10, date: "2025-01-15", bpTitle: "Automated Quality Inspection" },
-        { type: "Copier", points: 5, date: "2025-03-10", bpTitle: "Safety Protocol for Chemical Handling" },
-        { type: "Origin", points: 6, date: "2025-03-18", bpTitle: "Waste Reduction Initiative" }
-      ]
-    },
-    { 
-      plant: "Kanchipuram", 
-      totalPoints: 28, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-05-20", bpTitle: "IoT Sensor Implementation" },
-        { type: "Copier", points: 5, date: "2025-04-12", bpTitle: "Digital Production Control Tower" },
-        { type: "Copier", points: 5, date: "2025-05-05", bpTitle: "Assembly Line Cobots" },
-        { type: "Origin", points: 8, date: "2025-03-25", bpTitle: "Lean Packaging Redesign" }
-      ]
-    },
-    { 
-      plant: "Rajpura", 
-      totalPoints: 26, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-02-28", bpTitle: "Green Energy Dashboard" },
-        { type: "Copier", points: 5, date: "2025-03-22", bpTitle: "ESG Compliance Monitoring Program" },
-        { type: "Origin", points: 6, date: "2025-01-30", bpTitle: "Smart Inventory Tagging" },
-        { type: "Copier", points: 5, date: "2025-04-18", bpTitle: "Assembly Line Cobots" }
-      ]
-    },
-    { 
-      plant: "Shahjahanpur", 
-      totalPoints: 22, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-06-14", bpTitle: "Digital Production Control Tower" },
-        { type: "Copier", points: 5, date: "2025-05-04", bpTitle: "IoT Sensor Implementation" },
-        { type: "Copier", points: 5, date: "2025-02-15", bpTitle: "Waste Reduction Initiative" },
-        { type: "Origin", points: 2, date: "2025-03-02", bpTitle: "Visual Management Boards" }
-      ]
-    },
-    { 
-      plant: "Supa", 
-      totalPoints: 20, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-03-10", bpTitle: "Safety Protocol for Chemical Handling" },
-        { type: "Copier", points: 5, date: "2025-02-25", bpTitle: "Digital Production Control Tower" },
-        { type: "Copier", points: 5, date: "2025-04-05", bpTitle: "IoT Sensor Implementation" }
-      ]
-    },
-    { 
-      plant: "Ranjangaon", 
-      totalPoints: 19, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-04-08", bpTitle: "Production Line Optimization" },
-        { type: "Copier", points: 5, date: "2025-04-22", bpTitle: "Assembly Line Cobots" },
-        { type: "Copier", points: 4, date: "2025-05-26", bpTitle: "ESG Compliance Monitoring Program" }
-      ]
-    },
-    { 
-      plant: "Ponneri", 
-      totalPoints: 18, 
-      breakdown: [
-        { type: "Origin", points: 10, date: "2025-02-09", bpTitle: "ESG Compliance Monitoring Program" },
-        { type: "Copier", points: 5, date: "2025-03-18", bpTitle: "Waste Reduction Initiative" },
-        { type: "Copier", points: 3, date: "2025-05-12", bpTitle: "Safety Protocol for Chemical Handling" }
-      ]
-    }
-  ]), []);
-
   const mergedLeaderboard = useMemo(() => {
     if (leaderboardData && leaderboardData.length > 0) {
-      return leaderboardData;
+      // Transform API data to match component expectations
+      return leaderboardData.map((entry: any) => ({
+        plant_id: entry.plant_id,
+        plant_name: entry.plant_name,
+        plant: entry.plant_name, // For compatibility
+        totalPoints: entry.total_points,
+        total_points: entry.total_points,
+        rank: entry.rank,
+        breakdown: (entry.breakdown || []).map((b: any) => ({
+          type: b.type === "Origin" ? "Origin" : "Copier",
+          points: b.points,
+          date: b.date,
+          bpTitle: b.bp_title,
+          bp_title: b.bp_title,
+        })),
+      }));
     }
     if (leaderboard && leaderboard.length > 0) {
-      return leaderboard;
+      // Transform props data if provided
+      return leaderboard.map((entry: any) => ({
+        plant_id: entry.plant_id || entry.plant,
+        plant_name: entry.plant_name || entry.plant,
+        plant: entry.plant_name || entry.plant,
+        totalPoints: entry.totalPoints || entry.total_points,
+        total_points: entry.totalPoints || entry.total_points,
+        rank: entry.rank,
+        breakdown: (entry.breakdown || []).map((b: any) => ({
+          type: b.type,
+          points: b.points,
+          date: b.date,
+          bpTitle: b.bpTitle || b.bp_title,
+          bp_title: b.bpTitle || b.bp_title,
+        })),
+      }));
     }
-    return baseLeaderboard;
-  }, [leaderboardData, leaderboard, baseLeaderboard]);
+    return [];
+  }, [leaderboardData, leaderboard]);
 
   // Use API data for plant performance
   const plantData = useMemo(() => {
@@ -1090,60 +1048,17 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(() => {
-              // Leaderboard data (Origin: 10, Copier: 5)
-              const leaderboardData = mergedLeaderboard ?? [
-                { 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  totalPoints: 36, 
-                  breakdown: [
-                    { type: "Origin", points: 10, date: "2025-02-12", bpTitle: "Digital Production Control Tower" },
-                    { type: "Copier", points: 5, date: "2025-02-20", bpTitle: "Assembly Line Cobots" },
-                    { type: "Origin", points: 10, date: "2025-01-15", bpTitle: "Automated Quality Inspection" },
-                    { type: "Copier", points: 5, date: "2025-03-10", bpTitle: "Safety Protocol for Chemical Handling" },
-                    { type: "Origin", points: 6, date: "2025-03-18", bpTitle: "Waste Reduction Initiative" }
-                  ]
-                },
-                { 
-                  plant: "Kanchipuram", 
-                  totalPoints: 28, 
-                  breakdown: [
-                    { type: "Origin", points: 10, date: "2025-05-20", bpTitle: "IoT Sensor Implementation" },
-                    { type: "Copier", points: 5, date: "2025-04-12", bpTitle: "Digital Production Control Tower" },
-                    { type: "Copier", points: 5, date: "2025-05-05", bpTitle: "Assembly Line Cobots" },
-                    { type: "Origin", points: 8, date: "2025-03-25", bpTitle: "Lean Packaging Redesign" }
-                  ]
-                },
-                { 
-                  plant: "Rajpura", 
-                  totalPoints: 26, 
-                  breakdown: [
-                    { type: "Origin", points: 10, date: "2025-02-28", bpTitle: "Green Energy Dashboard" },
-                    { type: "Copier", points: 5, date: "2025-03-22", bpTitle: "ESG Compliance Monitoring Program" },
-                    { type: "Origin", points: 6, date: "2025-01-30", bpTitle: "Smart Inventory Tagging" },
-                    { type: "Copier", points: 5, date: "2025-04-18", bpTitle: "Assembly Line Cobots" }
-                  ]
-                },
-                { 
-                  plant: "Shahjahanpur", 
-                  totalPoints: 22, 
-                  breakdown: [
-                    { type: "Origin", points: 10, date: "2025-06-14", bpTitle: "Digital Production Control Tower" },
-                    { type: "Copier", points: 5, date: "2025-05-04", bpTitle: "IoT Sensor Implementation" },
-                    { type: "Copier", points: 5, date: "2025-02-15", bpTitle: "Waste Reduction Initiative" },
-                    { type: "Origin", points: 2, date: "2025-03-02", bpTitle: "Visual Management Boards" }
-                  ]
-                },
-                { 
-                  plant: "Supa", 
-                  totalPoints: 20, 
-                  breakdown: [
-                    { type: "Origin", points: 10, date: "2025-03-10", bpTitle: "Safety Protocol for Chemical Handling" },
-                    { type: "Copier", points: 5, date: "2025-02-25", bpTitle: "Digital Production Control Tower" },
-                    { type: "Copier", points: 5, date: "2025-04-05", bpTitle: "IoT Sensor Implementation" }
-                  ]
-                }
-              ];
+            {leaderboardLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : mergedLeaderboard.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No leaderboard data available</p>
+              </div>
+            ) : (
+              (() => {
+              const leaderboardData = mergedLeaderboard;
               
               return (
                 <div className="space-y-4">
@@ -1180,7 +1095,7 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                           
                           return (
                           <tr
-                            key={entry.plant}
+                            key={entry.plant_id || entry.plant}
                             className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
                             onClick={() => {
                               const asCopier = entry.breakdown.filter((b) => b.type === "Copier");
@@ -1190,18 +1105,23 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                               const asOrigin = entry.breakdown.filter((b) => b.type === "Origin");
                               const perBPMap = new Map<string, { title: string; copies: number; points: number }>();
                               asOrigin.forEach((b) => {
-                                const prev = perBPMap.get(b.bpTitle) || { title: b.bpTitle, copies: 0, points: 0 };
+                                const bpTitle = b.bpTitle || b.bp_title;
+                                const prev = perBPMap.get(bpTitle) || { title: bpTitle, copies: 0, points: 0 };
                                 prev.copies += 1;
                                 prev.points += b.points || 0;
-                                perBPMap.set(b.bpTitle, prev);
+                                perBPMap.set(bpTitle, prev);
                               });
                               const originated = Array.from(perBPMap.values());
                               const originatedCount = originated.length;
                               const originatedPoints = originated.reduce((s, r) => s + r.points, 0);
 
-                              setLbDrillPlant(entry.plant);
+                              setLbDrillPlant(entry.plant_name || entry.plant);
                               setLbDrillData({
-                                copied: asCopier.map((c) => ({ title: c.bpTitle, points: c.points, date: c.date })),
+                                copied: asCopier.map((c) => ({ 
+                                  title: c.bpTitle || c.bp_title, 
+                                  points: c.points, 
+                                  date: c.date 
+                                })),
                                 copiedCount,
                                 copiedPoints,
                                 originated,
@@ -1214,10 +1134,10 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                             <td className="py-1 font-medium text-xs">
                               {index + 1}
                             </td>
-                            <td className="py-1 font-medium text-xs">{entry.plant}</td>
+                            <td className="py-1 font-medium text-xs">{entry.plant_name || entry.plant}</td>
                             <td className="py-1 text-center pl-2">
                               <Badge variant="outline" className="bg-primary/10 text-primary border-primary text-xs px-1 py-0">
-                                {entry.totalPoints}
+                                {entry.totalPoints || entry.total_points}
                               </Badge>
                             </td>
                             <td className="py-1 text-center pl-1">
@@ -1230,18 +1150,21 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                               <div className="text-xs text-muted-foreground">
                                 <div className="text-xs">{entry.breakdown.length} entries</div>
                                 <div className="mt-0.5 space-y-0.5">
-                                  {entry.breakdown.slice(0, 2).map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-center gap-1">
-                                      <Badge variant="outline" className={
-                                        item.type === "Origin" 
-                                          ? "bg-success/10 text-success border-success text-xs px-1 py-0" 
-                                          : "bg-primary/10 text-primary border-primary text-xs px-1 py-0"
-                                      }>
-                                        {item.type}: {item.points}
-                                      </Badge>
-                                      <span className="text-xs">{item.bpTitle}</span>
-                                    </div>
-                                  ))}
+                                  {entry.breakdown.slice(0, 2).map((item, idx) => {
+                                    const bpTitle = item.bpTitle || item.bp_title;
+                                    return (
+                                      <div key={idx} className="flex items-center justify-center gap-1">
+                                        <Badge variant="outline" className={
+                                          item.type === "Origin" 
+                                            ? "bg-success/10 text-success border-success text-xs px-1 py-0" 
+                                            : "bg-primary/10 text-primary border-primary text-xs px-1 py-0"
+                                        }>
+                                          {item.type}: {item.points}
+                                        </Badge>
+                                        <span className="text-xs">{bpTitle}</span>
+                                      </div>
+                                    );
+                                  })}
                                   {entry.breakdown.length > 2 && (
                                     <div className="text-xs text-muted-foreground text-center">
                                       +{entry.breakdown.length - 2} more...
@@ -1258,7 +1181,7 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                   </div>
                 </div>
               );
-            })()}
+            })())}
             {/* Leaderboard Drilldown: Origin impact */}
             <AlertDialog open={lbDrillOpen} onOpenChange={setLbDrillOpen}>
               <AlertDialogContent>

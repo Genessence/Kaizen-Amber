@@ -58,7 +58,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   const [endDate, setEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
-  // Fetch data from API
+  // Fetch data from API - sorted by creation date (newest first)
   const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
     category_id: categoryFilter !== "all" ? categoryFilter : undefined,
     plant_id: plantFilter !== "all" ? plantFilter : undefined,
@@ -66,6 +66,8 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
     start_date: startDate || undefined,
     end_date: endDate || undefined,
     limit: 100,
+    sort_by: 'created_at', // Sort by creation date
+    sort_order: 'desc', // Newest first
   });
 
   const { data: categoriesData } = useCategories();
@@ -125,6 +127,18 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
     if (areaFilter !== "all") {
       filtered = filtered.filter((practice) => practice.area_implemented === areaFilter);
     }
+
+    // Sort by creation date (newest first) as fallback to ensure correct order
+    filtered = [...filtered].sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      // If created_at is not available, use submitted_date as fallback
+      const fallbackDateA = a.submitted_date ? new Date(a.submitted_date).getTime() : 0;
+      const fallbackDateB = b.submitted_date ? new Date(b.submitted_date).getTime() : 0;
+      const finalDateA = dateA || fallbackDateA;
+      const finalDateB = dateB || fallbackDateB;
+      return finalDateB - finalDateA; // Descending order (newest first)
+    });
 
     return filtered;
   }, [practices, savingsFilter, areaFilter]);

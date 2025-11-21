@@ -18,16 +18,14 @@ app = FastAPI(
 )
 
 # Configure CORS
-from fastapi.middleware.cors import CORSMiddleware
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:3000"]
+    allow_origins=settings.CORS_ORIGINS,  # Use origins from .env file
     allow_credentials=True,
-    allow_methods=["*"],  # <-- VERY IMPORTANT
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
-
 
 
 @app.get("/", tags=["Health"])

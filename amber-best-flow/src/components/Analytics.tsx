@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/chart";
 import { Pie, PieChart, Cell, BarChart, XAxis, YAxis, CartesianGrid, Bar, Label, LabelList } from "recharts";
 import { formatCurrency } from "@/lib/utils";
-import { allPracticesData } from "@/components/PracticeList";
+import { useBestPractices } from "@/hooks/useBestPractices";
 
 interface AnalyticsProps {
   userRole: "plant" | "hq";
@@ -390,27 +390,29 @@ const extractSavingsAmount = (savingsStr: string | undefined): number => {
   return 0;
 };
 
-// Generate plantMonthlySavings from allPracticesData
-const generatePlantMonthlySavings = (): Record<string, PlantMonthlyBreakdown[]> => {
+// Generate plantMonthlySavings from practices data
+const generatePlantMonthlySavings = (practices: any[]): Record<string, PlantMonthlyBreakdown[]> => {
   const result: Record<string, PlantMonthlyBreakdown[]> = {};
   
   // Group practices by plant
-  const practicesByPlant = new Map<string, typeof allPracticesData>();
-  allPracticesData.forEach(practice => {
-    if (!practicesByPlant.has(practice.plant)) {
-      practicesByPlant.set(practice.plant, []);
+  const practicesByPlant = new Map<string, any[]>();
+  practices.forEach(practice => {
+    const plantName = practice.plant_name || practice.plant || "Unknown";
+    if (!practicesByPlant.has(plantName)) {
+      practicesByPlant.set(plantName, []);
     }
-    practicesByPlant.get(practice.plant)!.push(practice);
+    practicesByPlant.get(plantName)!.push(practice);
   });
   
   // Process each plant
-  practicesByPlant.forEach((practices, plantName) => {
+  practicesByPlant.forEach((plantPractices, plantName) => {
     // Group practices by month
-    const practicesByMonth = new Map<string, typeof practices>();
+    const practicesByMonth = new Map<string, any[]>();
     
-    practices.forEach(practice => {
-      if (practice.submittedDate) {
-        const date = new Date(practice.submittedDate);
+    plantPractices.forEach(practice => {
+      const submittedDate = practice.submitted_date || practice.submittedDate;
+      if (submittedDate) {
+        const date = new Date(submittedDate);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         
         if (!practicesByMonth.has(monthKey)) {
@@ -427,8 +429,8 @@ const generatePlantMonthlySavings = (): Record<string, PlantMonthlyBreakdown[]> 
       // Limit to max 2 practices per month, take first 2
       const limitedPractices = monthPractices.slice(0, 2).map(p => ({
         title: p.title,
-        savings: extractSavingsAmount(p.savings),
-        benchmarked: false // Will be determined by checking if practice exists in benchmarked list
+        savings: extractSavingsAmount(p.savings_amount ? `₹${p.savings_amount}${p.savings_currency === 'crores' ? 'Cr' : p.savings_currency === 'lakhs' ? 'L' : ''}` : p.savings),
+        benchmarked: p.is_benchmarked || false
       }));
       
       const totalSavings = limitedPractices.reduce((sum, p) => sum + p.savings, 0);
@@ -451,27 +453,26 @@ const generatePlantMonthlySavings = (): Record<string, PlantMonthlyBreakdown[]> 
   return result;
 };
 
-const plantMonthlySavings = generatePlantMonthlySavings();
-
-// Default breakdown for plants without practices - use first practice from allPracticesData
-const defaultMonthlyBreakdown: PlantMonthlyBreakdown[] = (() => {
-  if (allPracticesData.length === 0) return [];
+// Default breakdown for plants without practices
+const getDefaultMonthlyBreakdown = (practices: any[]): PlantMonthlyBreakdown[] => {
+  if (practices.length === 0) return [];
   
   // Use the first practice as default
-  const firstPractice = allPracticesData[0];
-  const date = new Date(firstPractice.submittedDate || `${currentYear}-01-01`);
+  const firstPractice = practices[0];
+  const submittedDate = firstPractice.submitted_date || firstPractice.submittedDate;
+  const date = new Date(submittedDate || `${currentYear}-01-01`);
   const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   
   return [{
     month: monthKey,
-    totalSavings: extractSavingsAmount(firstPractice.savings),
+    totalSavings: extractSavingsAmount(firstPractice.savings_amount ? `₹${firstPractice.savings_amount}${firstPractice.savings_currency === 'crores' ? 'Cr' : firstPractice.savings_currency === 'lakhs' ? 'L' : ''}` : firstPractice.savings),
     practices: [{
       title: firstPractice.title,
-      savings: extractSavingsAmount(firstPractice.savings),
-      benchmarked: false
+      savings: extractSavingsAmount(firstPractice.savings_amount ? `₹${firstPractice.savings_amount}${firstPractice.savings_currency === 'crores' ? 'Cr' : firstPractice.savings_currency === 'lakhs' ? 'L' : ''}` : firstPractice.savings),
+      benchmarked: firstPractice.is_benchmarked || false
     }]
   }];
-})();
+};
 
 const formatLakh = (n: number) => formatCurrency(n, 1);
 const pctChange = (current: number, last: number) => (last === 0 ? 0 : ((current - last) / last) * 100);
@@ -479,6 +480,15 @@ const pctChange = (current: number, last: number) => (last === 0 ? 0 : ((current
 const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
   const navigate = useNavigate();
   const [costAnalysisFormat, setCostAnalysisFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  
+  // Fetch practices from API
+  const { data: practicesData } = useBestPractices({ limit: 1000 });
+  const practices = practicesData?.data || [];
+  
+  // Generate plant monthly savings from API data
+  const plantMonthlySavings = useMemo(() => generatePlantMonthlySavings(practices), [practices]);
+  const defaultMonthlyBreakdown = useMemo(() => getDefaultMonthlyBreakdown(practices), [practices]);
+  
   // Filter by role (plant users see only their plant's savings)
   const visible = userRole === "plant" ? plantCostData.filter(p => p.name === "Greater Noida (Ecotech 1)") : plantCostData;
 
@@ -530,19 +540,20 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
     // Get plant entries, or create default from first practice of that plant
     let plantEntries = plantMonthlySavings[selectedPlant.name];
     
-    // If plant has no practices, find first practice from that plant in allPracticesData
+    // If plant has no practices, find first practice from that plant in practices
     if (!plantEntries || plantEntries.length === 0) {
-      const plantPractice = allPracticesData.find(p => p.plant === selectedPlant.name);
+      const plantPractice = practices.find(p => (p.plant_name || p.plant) === selectedPlant.name);
       if (plantPractice) {
-        const date = new Date(plantPractice.submittedDate || `${currentYear}-01-01`);
+        const submittedDate = plantPractice.submitted_date || plantPractice.submittedDate;
+        const date = new Date(submittedDate || `${currentYear}-01-01`);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         plantEntries = [{
           month: monthKey,
-          totalSavings: extractSavingsAmount(plantPractice.savings),
+          totalSavings: extractSavingsAmount(plantPractice.savings_amount ? `₹${plantPractice.savings_amount}${plantPractice.savings_currency === 'crores' ? 'Cr' : plantPractice.savings_currency === 'lakhs' ? 'L' : ''}` : plantPractice.savings),
           practices: [{
             title: plantPractice.title,
-            savings: extractSavingsAmount(plantPractice.savings),
-            benchmarked: false
+            savings: extractSavingsAmount(plantPractice.savings_amount ? `₹${plantPractice.savings_amount}${plantPractice.savings_currency === 'crores' ? 'Cr' : plantPractice.savings_currency === 'lakhs' ? 'L' : ''}` : plantPractice.savings),
+            benchmarked: plantPractice.is_benchmarked || false
           }]
         }];
       } else {
@@ -552,7 +563,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
     }
     
     return fillMissingMonths(plantEntries);
-  }, [selectedPlant]);
+  }, [selectedPlant, plantMonthlySavings, defaultMonthlyBreakdown, practices]);
 
   const handlePlantRowClick = (plant: PlantCost) => {
     setSelectedPlant(plant);
@@ -1105,14 +1116,15 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {selectedMonthPractices && selectedMonthPractices.practices.length > 0 ? (
                 selectedMonthPractices.practices.map((practice, idx) => {
-                  // Find the full practice data from allPracticesData
-                  const fullPractice = allPracticesData.find(
-                    (p) => p.title === practice.title && selectedPlant && p.plant === selectedPlant.name
-                  ) || allPracticesData.find((p) => p.title === practice.title);
+                  // Find the full practice data from practices API data
+                  const fullPractice = practices.find(
+                    (p) => p.title === practice.title && selectedPlant && (p.plant_name || p.plant) === selectedPlant.name
+                  ) || practices.find((p) => p.title === practice.title);
                   
                   // Format date - use practice submittedDate if available, otherwise use month
-                  const practiceDate = fullPractice?.submittedDate 
-                    ? new Date(fullPractice.submittedDate).toLocaleDateString("en-IN", { 
+                  const submittedDate = fullPractice?.submitted_date || fullPractice?.submittedDate;
+                  const practiceDate = submittedDate
+                    ? new Date(submittedDate).toLocaleDateString("en-IN", { 
                         day: "numeric", 
                         month: "short", 
                         year: "numeric" 

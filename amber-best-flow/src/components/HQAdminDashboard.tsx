@@ -64,7 +64,7 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard();
   const { data: copySpreadData, isLoading: copySpreadLoading } = useCopySpread(2);
   const { data: categoryBreakdown, isLoading: categoryLoading } = useCategoryBreakdown();
-  const { data: benchmarkedPractices } = useRecentBenchmarkedPractices(4);
+  const { data: benchmarkedPractices, isLoading: benchmarkedPracticesLoading } = useRecentBenchmarkedPractices(4);
   const { data: plantsData } = usePlants(true);
   
   const [showDivisionSelector, setShowDivisionSelector] = useState(false);
@@ -193,65 +193,46 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
     return baseLeaderboard;
   }, [leaderboardData, leaderboard, baseLeaderboard]);
 
-  const plantData = [
-    { name: "Greater Noida (Ecotech 1)", submitted: 26 },
-    { name: "Kanchipuram", submitted: 21 },
-    { name: "Rajpura", submitted: 24 },
-    { name: "Shahjahanpur", submitted: 19 },
-    { name: "Supa", submitted: 17 },
-    { name: "Ranjangaon", submitted: 22 },
-    { name: "Ponneri", submitted: 0 }
-  ];
+  // Use API data for plant performance
+  const plantData = useMemo(() => {
+    if (plantPerformanceData && plantPerformanceData.length > 0) {
+      return plantPerformanceData.map((p: any) => ({
+        name: p.plant_name,
+        submitted: p.submitted_count || p.monthly_count || 0,
+      }));
+    }
+    // Fallback to empty array if no data
+    return [];
+  }, [plantPerformanceData]);
 
-  const plantMonthlyPerformance = [
-    { name: "Greater Noida (Ecotech 1)", submitted: 5 },
-    { name: "Kanchipuram", submitted: 4 },
-    { name: "Rajpura", submitted: 4 },
-    { name: "Shahjahanpur", submitted: 3 },
-    { name: "Supa", submitted: 2 },
-    { name: "Ranjangaon", submitted: 4 },
-    { name: "Ponneri", submitted: 2 }
-  ];
+  // Use API data for monthly performance (current month)
+  const plantMonthlyPerformance = useMemo(() => {
+    if (plantPerformanceData && plantPerformanceData.length > 0) {
+      return plantPerformanceData.map((p: any) => ({
+        name: p.plant_name,
+        submitted: p.monthly_count || 0,
+      }));
+    }
+    return [];
+  }, [plantPerformanceData]);
 
-  // Demo dataset of benchmarked BPs (used for count and drilldown)
-  const benchmarkedBPs = [
-    {
-      bp: "Digital Production Control Tower",
-      origin: "Greater Noida (Ecotech 1)",
-      copies: [
-        { plant: "Kanchipuram", date: "2025-02-18" },
-        { plant: "Shahjahanpur", date: "2025-02-24" },
-      ],
-    },
-    {
-      bp: "Assembly Line Cobots",
-      origin: "Ranjangaon",
-      copies: [
-        { plant: "Greater Noida (Ecotech 1)", date: "2025-04-20" },
-        { plant: "Rajpura", date: "2025-04-28" },
-      ],
-    },
-    {
-      bp: "ESG Compliance Monitoring Program",
-      origin: "Ponneri",
-      copies: [
-        { plant: "Greater Noida (Ecotech 1)", date: "2025-02-18" },
-        { plant: "Rajpura", date: "2025-03-05" },
-        { plant: "Ranjangaon", date: "2025-05-26" },
-      ],
-    },
-    {
-      bp: "Safety Protocol for Chemical Handling",
-      origin: "Supa",
-      copies: [
-        { plant: "Greater Noida (Ecotech 1)", date: "2025-03-15" },
-        { plant: "Ponneri", date: "2025-04-02" },
-      ],
-    },
-  ];
+  // Use API data for benchmarked BPs (copy spread)
+  const benchmarkedBPs = useMemo(() => {
+    if (copySpreadData && copySpreadData.length > 0) {
+      return copySpreadData.map((item: any) => ({
+        bp: item.bp_title || item.bp,
+        origin: item.origin_plant_name || item.origin,
+        copies: (item.copies || []).map((copy: any) => ({
+          plant: copy.plant_name || copy.plant,
+          date: copy.copied_date || copy.date,
+        })),
+      }));
+    }
+    return [];
+  }, [copySpreadData]);
 
   // Submission-derived active plants
-  const totalPlantCount = 7;
+  const totalPlantCount = plantsData?.length || plantData.length || 7;
   const activeBySubmission = useMemo(() => plantData.filter((p) => p.submitted > 0), [plantData]);
   const activeBySubmissionCount = activeBySubmission.length;
   const ytdSubmissions = useMemo(() => plantData.reduce((sum, p) => sum + (p.submitted || 0), 0), [plantData]);
@@ -778,77 +759,69 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { 
-                  title: "Smart Cart Movement & Management through AMR", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  benchmarked: "4 hours ago",
-                  hasImage: true
-                },
-                { 
-                  title: "Empty Cart Feeding System (Manual → Auto)", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Productivity", 
-                  benchmarked: "2 days ago",
-                  hasImage: true
-                },
-                { 
-                  title: "Smart Inbound Logistics through AGV", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  benchmarked: "3 days ago",
-                  hasImage: true
-                },
-                { 
-                  title: "Injection Machines Robotic Operation", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  benchmarked: "1 day ago",
-                  hasImage: true
-                }
-              ].filter(bp => bp.hasImage).map((bp, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                  onClick={() => {
-                    navigate(`/practices/${practice.id}`);
-                  }}
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium">{bp.title}</h4>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        {bp.category}
-                    </Badge>
-                      <span className="text-xs text-muted-foreground">{bp.plant}</span>
-                      <span className="text-xs text-muted-foreground">• {bp.benchmarked}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onViewPractice) {
-                          onViewPractice({
-                            title: bp.title,
-                            category: bp.category,
-                            plant: bp.plant
-                          });
-                        } else {
-                          navigate("/practices");
-                        }
+            {benchmarkedPracticesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
+              <div className="space-y-4">
+                {benchmarkedPractices.slice(0, 4).map((bp: any) => {
+                  // Format benchmarked date
+                  const benchmarkedDate = bp.benchmarked_date 
+                    ? new Date(bp.benchmarked_date)
+                    : null;
+                  const timeAgo = benchmarkedDate
+                    ? (() => {
+                        const diffMs = Date.now() - benchmarkedDate.getTime();
+                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const diffDays = Math.floor(diffHours / 24);
+                        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                        return 'Just now';
+                      })()
+                    : 'Recently';
+                  
+                  return (
+                    <div 
+                      key={bp.practice_id || bp.id} 
+                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
+                      onClick={() => {
+                        navigate(`/practices/${bp.practice_id || bp.id}`);
                       }}
                     >
-                      View Details
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">{bp.practice_title || bp.title}</h4>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {bp.practice_category || bp.category_name || bp.category || "Other"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {bp.plant_name || bp.plant || "Unknown Plant"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">• {timeAgo}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/practices/${bp.practice_id || bp.id}`);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No benchmarked practices yet</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

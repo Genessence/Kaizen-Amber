@@ -60,7 +60,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   useDashboardOverview,
   useCategoryBreakdown,
+  usePlantMonthlyTrend,
+  useStarRatings,
 } from "@/hooks/useAnalytics";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import {
   useCopySpread,
@@ -103,6 +106,8 @@ const PlantUserDashboard = ({
   copySpread,
 }: PlantUserDashboardProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
   // Fetch dashboard data from API
   const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
   const { data: myPractices, isLoading: practicesLoading } = useMyPractices();
@@ -137,6 +142,14 @@ const PlantUserDashboard = ({
   const [monthlySavingsFormat, setMonthlySavingsFormat] = useState<
     "lakhs" | "crores"
   >("lakhs");
+
+  // Fetch monthly trend data for plant user
+  const { data: monthlyTrendData, isLoading: monthlyTrendLoading } =
+    usePlantMonthlyTrend(user?.plant_id, undefined, monthlySavingsFormat);
+
+  // Fetch star ratings for plant user
+  const { data: starRatingsData, isLoading: starRatingsLoading } =
+    useStarRatings(monthlySavingsFormat);
 
   // Use API data with fallback to props for backwards compatibility
   const actualMonthlyCount = overview?.monthly_count ?? monthlyCount ?? 1;
@@ -1061,186 +1074,244 @@ const PlantUserDashboard = ({
             </div>
           </CardHeader>
           <CardContent>
-            {(() => {
-              // Mock data for monthly cost savings and stars
-              const monthlyData = [
-                { month: "Jan", costSavings: 12.5, stars: 2 },
-                { month: "Feb", costSavings: 15.2, stars: 3 },
-                { month: "Mar", costSavings: 18.7, stars: 4 },
-                { month: "Apr", costSavings: 14.3, stars: 2 },
-                { month: "May", costSavings: 16.8, stars: 3 },
-                { month: "Jun", costSavings: 20.1, stars: 4 },
-                { month: "Jul", costSavings: 17.5, stars: 3 },
-                { month: "Aug", costSavings: 19.2, stars: 4 },
-                { month: "Sep", costSavings: 22.4, stars: 5 },
-                { month: "Oct", costSavings: 18.9, stars: 3 },
-                { month: "Nov", costSavings: 21.3, stars: 4 },
-                { month: "Dec", costSavings: 24.7, stars: 5 },
-              ];
+            {monthlyTrendLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              (() => {
+                // Use API data for monthly trend, fallback to empty array if no data
+                const monthlyData =
+                  monthlyTrendData && monthlyTrendData.length > 0
+                    ? monthlyTrendData.map((trend) => {
+                        // Parse savings string (e.g., "12.5L" or "1.2Cr") to number
+                        const savingsStr = trend.savings
+                          .replace(/[₹,]/g, "")
+                          .trim();
+                        const isCrores = savingsStr.includes("Cr");
+                        const isLakhs = savingsStr.includes("L");
+                        const numStr = savingsStr.replace(/[CrL]/g, "").trim();
+                        const savingsValue = parseFloat(numStr) || 0;
 
-              const currentMonth = monthlyData[monthlyData.length - 1];
-              const ytdSavings = monthlyData.reduce(
-                (sum, month) => sum + month.costSavings,
-                0
-              );
-              const ytdStars = monthlyData.reduce(
-                (sum, month) => sum + month.stars,
-                0
-              );
+                        // Convert month format from "YYYY-MM" to "MMM"
+                        const [year, month] = trend.month.split("-");
+                        const date = new Date(
+                          parseInt(year),
+                          parseInt(month) - 1,
+                          1
+                        );
+                        const monthLabel = date.toLocaleString("default", {
+                          month: "short",
+                        });
 
-              return (
-                <div className="space-y-4">
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-700">
-                          {formatCurrency(
-                            currentMonth.costSavings,
-                            1,
-                            monthlySavingsFormat
-                          )}
-                        </div>
-                        <p className="text-sm text-green-600">
-                          This Month Savings
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-700">
-                          {formatCurrency(ytdSavings, 1, monthlySavingsFormat)}
-                        </div>
-                        <p className="text-sm text-blue-600">YTD Savings</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-yellow-700">
-                          {ytdStars}
-                        </div>
-                        <p className="text-sm text-yellow-600">
-                          Total Stars ⭐
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
+                        return {
+                          month: monthLabel,
+                          costSavings: savingsValue,
+                          stars: trend.stars || 0,
+                        };
+                      })
+                    : [];
 
-                  {/* Chart */}
-                  <ChartContainer
-                    config={{
-                      costSavings: {
-                        label: `Cost Savings (₹${
-                          monthlySavingsFormat === "crores" ? "Cr" : "L"
-                        })`,
-                        color: "hsl(var(--success))",
-                      },
-                      stars: {
-                        label: "Stars ⭐",
-                        color: "hsl(var(--warning))",
-                      },
-                    }}
-                    className="h-[300px] w-full"
-                  >
-                    <BarChart data={monthlyData}>
-                      <defs>
-                        <linearGradient
-                          id="gradientCostSavings"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="hsl(var(--success))"
-                            stopOpacity={0.9}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="hsl(var(--success))"
-                            stopOpacity={0.4}
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="gradientStars"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="hsl(var(--warning))"
-                            stopOpacity={0.9}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="hsl(var(--warning))"
-                            stopOpacity={0.4}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis yAxisId="left" />
-                      <YAxis yAxisId="right" orientation="right" />
-                      <ChartTooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="rounded-lg border bg-background p-2 shadow-md">
-                                <div className="grid gap-2">
-                                  <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                      {label}
-                                    </span>
-                                  </div>
-                                  {payload.map((entry, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-center gap-2"
-                                    >
-                                      <div
-                                        className="h-2 w-2 rounded-full"
-                                        style={{ backgroundColor: entry.color }}
-                                      />
-                                      <span className="text-[0.70rem] text-muted-foreground">
-                                        {entry.dataKey === "costSavings"
-                                          ? `Cost Savings: ${formatCurrency(
-                                              entry.value as number,
-                                              1,
-                                              monthlySavingsFormat
-                                            )}`
-                                          : `Stars: ${entry.value}`}
+                // Get current month data or use last month from data
+                const currentMonthData =
+                  monthlyData.length > 0
+                    ? monthlyData[monthlyData.length - 1]
+                    : {
+                        month: new Date().toLocaleString("default", {
+                          month: "short",
+                        }),
+                        costSavings: 0,
+                        stars: 0,
+                      };
+
+                // Calculate YTD savings and stars from API data
+                const ytdSavings = monthlyData.reduce(
+                  (sum, month) => sum + month.costSavings,
+                  0
+                );
+                const ytdStars = monthlyData.reduce(
+                  (sum, month) => sum + month.stars,
+                  0
+                );
+
+                // Use star ratings data for current month if available
+                const currentStarRating = starRatingsData?.find(
+                  (sr) => sr.plant_id === user?.plant_id
+                );
+                const currentMonthSavings = currentStarRating?.monthly_savings
+                  ? parseFloat(
+                      currentStarRating.monthly_savings
+                        .replace(/[₹,CrL]/g, "")
+                        .trim()
+                    ) || currentMonthData.costSavings
+                  : currentMonthData.costSavings;
+
+                const currentMonth = {
+                  ...currentMonthData,
+                  costSavings: currentMonthSavings,
+                  stars: currentStarRating?.stars || currentMonthData.stars,
+                };
+
+                return (
+                  <div className="space-y-4">
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-green-700">
+                            {formatCurrency(
+                              currentMonth.costSavings,
+                              1,
+                              monthlySavingsFormat
+                            )}
+                          </div>
+                          <p className="text-sm text-green-600">
+                            This Month Savings
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-blue-700">
+                            {formatCurrency(
+                              ytdSavings,
+                              1,
+                              monthlySavingsFormat
+                            )}
+                          </div>
+                          <p className="text-sm text-blue-600">YTD Savings</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold text-yellow-700">
+                            {ytdStars}
+                          </div>
+                          <p className="text-sm text-yellow-600">
+                            Total Stars ⭐
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Chart */}
+                    <ChartContainer
+                      config={{
+                        costSavings: {
+                          label: `Cost Savings (₹${
+                            monthlySavingsFormat === "crores" ? "Cr" : "L"
+                          })`,
+                          color: "hsl(var(--success))",
+                        },
+                        stars: {
+                          label: "Stars ⭐",
+                          color: "hsl(var(--warning))",
+                        },
+                      }}
+                      className="h-[300px] w-full"
+                    >
+                      <BarChart data={monthlyData}>
+                        <defs>
+                          <linearGradient
+                            id="gradientCostSavings"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="hsl(var(--success))"
+                              stopOpacity={0.9}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="hsl(var(--success))"
+                              stopOpacity={0.4}
+                            />
+                          </linearGradient>
+                          <linearGradient
+                            id="gradientStars"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="hsl(var(--warning))"
+                              stopOpacity={0.9}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="hsl(var(--warning))"
+                              stopOpacity={0.4}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis yAxisId="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <ChartTooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="rounded-lg border bg-background p-2 shadow-md">
+                                  <div className="grid gap-2">
+                                    <div className="flex flex-col">
+                                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                        {label}
                                       </span>
                                     </div>
-                                  ))}
+                                    {payload.map((entry, index) => (
+                                      <div
+                                        key={index}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <div
+                                          className="h-2 w-2 rounded-full"
+                                          style={{
+                                            backgroundColor: entry.color,
+                                          }}
+                                        />
+                                        <span className="text-[0.70rem] text-muted-foreground">
+                                          {entry.dataKey === "costSavings"
+                                            ? `Cost Savings: ${formatCurrency(
+                                                entry.value as number,
+                                                1,
+                                                monthlySavingsFormat
+                                              )}`
+                                            : `Stars: ${entry.value}`}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="costSavings"
-                        fill="url(#gradientCostSavings)"
-                        radius={[8, 8, 0, 0]}
-                      />
-                      <Bar
-                        yAxisId="right"
-                        dataKey="stars"
-                        fill="url(#gradientStars)"
-                        radius={[8, 8, 0, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
-                </div>
-              );
-            })()}
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar
+                          yAxisId="left"
+                          dataKey="costSavings"
+                          fill="url(#gradientCostSavings)"
+                          radius={[8, 8, 0, 0]}
+                        />
+                        <Bar
+                          yAxisId="right"
+                          dataKey="stars"
+                          fill="url(#gradientStars)"
+                          radius={[8, 8, 0, 0]}
+                        />
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
+                );
+              })()
+            )}
           </CardContent>
         </Card>
       </div>

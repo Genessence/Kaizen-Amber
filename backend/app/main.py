@@ -18,13 +18,45 @@ app = FastAPI(
 )
 
 # Configure CORS
+# IMPORTANT: When allow_credentials=True, allow_origins CANNOT be ["*"]
+# It must be a specific list of origins. This is a browser security requirement.
+cors_origins = settings.CORS_ORIGINS
+
+# Validate that CORS_ORIGINS doesn't contain "*" when credentials are enabled
+if "*" in cors_origins:
+    raise ValueError(
+        "CORS_ORIGINS cannot contain '*' when allow_credentials=True. "
+        "Please specify exact origins in your .env file: "
+        "CORS_ORIGINS=[\"http://localhost:8080\",\"http://localhost:5173\"]"
+    )
+
+# Ensure CORS_ORIGINS is a list
+if not isinstance(cors_origins, list):
+    raise ValueError(f"CORS_ORIGINS must be a list, got {type(cors_origins)}")
+
+print(f"[CORS] Configuring CORS with origins: {cors_origins}")
+print(f"[CORS] allow_credentials: True")
+print(f"[CORS] allow_methods: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
+
+# Add CORS middleware - MUST be added BEFORE routes are included
+# FastAPI's CORSMiddleware automatically handles OPTIONS preflight requests
+# Note: allow_headers=["*"] should work, but being explicit can help with some browsers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,  # Use origins from .env file
-    allow_credentials=True,
+    allow_origins=cors_origins,  # Must be specific origins, not ["*"]
+    allow_credentials=True,  # Required for cookies/auth headers, but incompatible with "*"
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 

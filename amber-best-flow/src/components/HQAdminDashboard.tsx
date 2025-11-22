@@ -45,10 +45,11 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from "recharts";
-import { useDashboardOverview, usePlantPerformance, useBenchmarkStats, useCategoryBreakdown } from "@/hooks/useAnalytics";
+import { useDashboardOverview, usePlantPerformance, useBenchmarkStats, useCategoryBreakdown, useStarRatings, usePlantMonthlyTrend } from "@/hooks/useAnalytics";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useCopySpread, useRecentBenchmarkedPractices } from "@/hooks/useBenchmarking";
 import { usePlants } from "@/hooks/usePlants";
+import { useRecentPractices } from "@/hooks/useBestPractices";
 
 interface HQAdminDashboardProps {
   thisMonthTotal?: number;
@@ -57,7 +58,7 @@ interface HQAdminDashboardProps {
   leaderboard?: { plant: string; totalPoints: number; breakdown: { type: "Origin" | "Copier"; points: number; date: string; bpTitle: string }[] }[];
 }
 
-const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread, leaderboard }: HQAdminDashboardProps) => {
+const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }: HQAdminDashboardProps) => {
   const navigate = useNavigate();
   // Fetch data from API
   const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
@@ -67,21 +68,13 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   const { data: benchmarkedPractices, isLoading: benchmarkedPracticesLoading } = useRecentBenchmarkedPractices(4);
   const { data: plantsData } = usePlants(true);
   
+  // State declarations (must be before hooks that use them)
   const [showDivisionSelector, setShowDivisionSelector] = useState(false);
   const [division, setDivision] = useState<"all" | "component">("all");
   const [plantPerformanceView, setPlantPerformanceView] = useState<"yearly" | "currentMonth">("yearly");
-  
-  // Fetch plant performance data based on view
-  const { data: plantPerformanceData, isLoading: performanceLoading } = usePlantPerformance(
-    plantPerformanceView === "yearly" ? "yearly" : "monthly"
-  );
-  
-  // Fetch benchmark stats for current month
-  const { data: benchmarkStatsData, isLoading: benchmarkStatsLoading } = useBenchmarkStats();
-  
-  // Use API data with fallback to props
-  const actualThisMonthTotal = overview?.monthly_count ?? thisMonthTotal ?? 187;
-  const actualYtdTotal = overview?.ytd_count ?? ytdTotal ?? 295;
+  const [starRatingsFormat, setStarRatingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
   // Leaderboard drilldown (legacy shape kept for compatibility)
   const [lbDrillOpen, setLbDrillOpen] = useState(false);
   const [lbDrillPlant, setLbDrillPlant] = useState<string | null>(null);
@@ -106,10 +99,33 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   // star drilldown
   const [starDrillOpen, setStarDrillOpen] = useState(false);
   const [starDrillPlant, setStarDrillPlant] = useState<string | null>(null);
+  const [starDrillPlantId, setStarDrillPlantId] = useState<string | null>(null);
   const [starDrillData, setStarDrillData] = useState<{ month: string; savings: number; stars: number }[]>([]);
-  const [starRatingsFormat, setStarRatingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
-  const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
-  const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
+  
+  // Fetch plant performance data based on view
+  const { data: plantPerformanceData, isLoading: performanceLoading } = usePlantPerformance(
+    plantPerformanceView === "yearly" ? "yearly" : "monthly"
+  );
+  
+  // Fetch benchmark stats for current month
+  const { data: benchmarkStatsData, isLoading: benchmarkStatsLoading } = useBenchmarkStats();
+  
+  // Fetch star ratings with format
+  const { data: starRatingsData, isLoading: starRatingsLoading } = useStarRatings(starRatingsFormat);
+  
+  // Fetch recent practices
+  const { data: recentPractices, isLoading: recentPracticesLoading } = useRecentPractices(4);
+  
+  // Use API data with fallback to props
+  const actualThisMonthTotal = overview?.monthly_count ?? thisMonthTotal ?? 187;
+  const actualYtdTotal = overview?.ytd_count ?? ytdTotal ?? 295;
+  
+  // Fetch monthly trend for selected plant
+  const { data: monthlyTrendData, isLoading: monthlyTrendLoading } = usePlantMonthlyTrend(
+    starDrillPlantId || undefined,
+    undefined,
+    starRatingsFormat
+  );
 
   const mergedLeaderboard = useMemo(() => {
     if (leaderboardData && leaderboardData.length > 0) {
@@ -195,24 +211,14 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   const activeBySubmissionCount = activeBySubmission.length;
   const ytdSubmissions = useMemo(() => plantData.reduce((sum, p) => sum + (p.submitted || 0), 0), [plantData]);
 
-  // Division datasets (mocked per requirements)
-  const [componentPlants, setComponentPlants] = useState<{ name: string; active: boolean }[]>([
-    { name: "Component - Greater Noida (Ecotech 1)", active: true },
-    { name: "Component - Kanchipuram", active: true },
-    { name: "Component - Rajpura", active: true },
-    { name: "Component - Shahjahanpur", active: true },
-    { name: "Component - Supa", active: true },
-    { name: "Component - Ranjangaon", active: false },
-    { name: "Component - Ponneri", active: false },
-    { name: "Component - Additional Plant A", active: false },
-    { name: "Component - Additional Plant B", active: true },
-    { name: "Component - Additional Plant C", active: true },
-    { name: "Component - Additional Plant D", active: true },
-    { name: "Component - Additional Plant E", active: true },
-    { name: "Component - Additional Plant F", active: false },
-    { name: "Component - Additional Plant G", active: false },
-    { name: "Component - Additional Plant H", active: false },
-  ]);
+  // Derive component plants from API data
+  const componentPlants = useMemo(() => {
+    if (!plantsData || plantsData.length === 0) return [];
+    return plantsData.map((plant: any) => ({
+      name: plant.name || plant.plant_name,
+      active: activeBySubmission.some((p) => p.name === (plant.name || plant.plant_name))
+    }));
+  }, [plantsData, activeBySubmission]);
 
   const plantShortLabel: Record<string, string> = {
     "Greater Noida (Ecotech 1)": "Greater Noida",
@@ -240,9 +246,9 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
   }, [division, componentNames, activeNameSet]);
 
   const divisionInactiveNames = useMemo(() => {
-    // Only show Ponneri in inactive list
-    return ["Ponneri"];
-  }, []);
+    // Derive inactive plants from plantData (plants with submitted === 0)
+    return plantData.filter((p) => p.submitted === 0).map((p) => p.name);
+  }, [plantData]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -363,12 +369,14 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                 </div>
               </div>
               )}
-              <div className="mt-2 text-center">
-                <Badge variant="outline" className="bg-success/10 text-success">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +23% vs last month
-                </Badge>
-              </div>
+              {overview?.percent_change !== undefined && overview.percent_change !== null && (
+                <div className="mt-2 text-center">
+                  <Badge variant="outline" className={overview.percent_change >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}>
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    {overview.percent_change >= 0 ? '+' : ''}{overview.percent_change.toFixed(1)}% vs last month
+                  </Badge>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -813,39 +821,34 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
             </div>
           </CardHeader>
           <CardContent>
-            {(() => {
-              // Demo savings data (in lakhs ₹)
-              const savings = [
-                { name: "Greater Noida (Ecotech 1)", monthly: 14.2, ytd: 196.5 },
-                { name: "Kanchipuram", monthly: 11.8, ytd: 148.0 },
-                { name: "Rajpura", monthly: 9.5, ytd: 128.3 },
-                { name: "Shahjahanpur", monthly: 7.2, ytd: 102.4 },
-              ];
-
-              const getStars = (monthly: number, ytd: number) => {
-                // Both monthly and yearly thresholds must be met for a band
-                if (ytd > 200 && monthly > 16) return 5;
-                if (ytd > 150 && ytd < 200 && monthly > 12 && monthly < 16) return 4;
-                if (ytd > 100 && ytd < 150 && monthly > 8 && monthly < 12) return 3;
-                if (ytd > 50 && ytd < 100 && monthly > 4 && monthly < 8) return 2;
-                if (ytd > 50 && monthly > 4) return 1;
-                return 0;
+            {starRatingsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : starRatingsData && starRatingsData.length > 0 ? (() => {
+              // Parse savings strings (e.g., "14.2L" or "196.5L") to numbers
+              const parseSavings = (savingsStr: string): number => {
+                if (!savingsStr) return 0;
+                const isCrores = savingsStr.includes("Cr");
+                const isLakhs = savingsStr.includes("L");
+                const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
+                const value = parseFloat(numStr) || 0;
+                // Convert crores to lakhs for consistent comparison
+                return isCrores ? value * 100 : value;
               };
 
-              // Precompute stars
-              const ratings = savings.map((p) => {
-                const monthStars = getStars(p.monthly, p.ytd);
-                return { ...p, monthStars };
+              // Transform API data to match component structure
+              const ratings = starRatingsData.map((rating) => {
+                const monthly = parseSavings(rating.monthly_savings);
+                const ytd = parseSavings(rating.ytd_savings);
+                return {
+                  plant_id: rating.plant_id,
+                  name: rating.plant_name,
+                  monthly,
+                  ytd,
+                  monthStars: rating.stars,
+                };
               });
-
-              const generateMonthlyData = (baseMonthly: number, ytd: number) => {
-                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                return months.map((m, idx) => {
-                  const savings = Math.max(0, baseMonthly + Math.sin(idx) * 2 + (idx % 3 === 0 ? 1 : 0));
-                  const stars = getStars(savings, ytd);
-                  return { month: m, savings: Number(savings.toFixed(1)), stars };
-                });
-              };
 
               return (
                 <div className="overflow-x-auto">
@@ -861,11 +864,11 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                     <tbody className="divide-y">
                       {ratings.map((r) => (
                         <tr
-                          key={r.name}
+                          key={r.plant_id || r.name}
                           className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
                           onClick={() => {
                             setStarDrillPlant(r.name);
-                            setStarDrillData(generateMonthlyData(r.monthly, r.ytd));
+                            setStarDrillPlantId(r.plant_id);
                             setStarDrillOpen(true);
                           }}
                         >
@@ -879,7 +882,11 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                   </table>
                 </div>
               );
-            })()}
+            })() : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No star ratings data available</p>
+              </div>
+            )}
 
             {/* Drilldown: Monthly Savings & Stars */}
             <AlertDialog open={starDrillOpen} onOpenChange={setStarDrillOpen}>
@@ -892,29 +899,54 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
                     Savings are in ₹ {starRatingsFormat === 'crores' ? 'crores' : 'lakhs'}; stars are computed per monthly savings criteria.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="py-1">Month</th>
-                        <th className="py-1">Savings (₹{starRatingsFormat === 'crores' ? 'Cr' : 'L'})</th>
-                        <th className="py-1">Stars</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {starDrillData.map((row) => (
-                        <tr key={row.month}>
-                          <td className="py-1">{row.month}</td>
-                          <td className="py-1">{formatCurrency(row.savings, 1, starRatingsFormat)}</td>
-                          <td className="py-1">{row.stars}</td>
+                {monthlyTrendLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : monthlyTrendData && monthlyTrendData.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-muted-foreground">
+                          <th className="py-1">Month</th>
+                          <th className="py-1">Savings (₹{starRatingsFormat === 'crores' ? 'Cr' : 'L'})</th>
+                          <th className="py-1">Stars</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y">
+                        {monthlyTrendData.map((row) => {
+                          // Parse savings string to number
+                          const parseSavings = (savingsStr: string): number => {
+                            if (!savingsStr) return 0;
+                            const isCrores = savingsStr.includes("Cr");
+                            const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
+                            const value = parseFloat(numStr) || 0;
+                            return isCrores ? value * 100 : value;
+                          };
+                          const savingsValue = parseSavings(row.savings);
+                          return (
+                            <tr key={row.month}>
+                              <td className="py-1">{row.month}</td>
+                              <td className="py-1">{formatCurrency(savingsValue, 1, starRatingsFormat)}</td>
+                              <td className="py-1">{row.stars}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No monthly trend data available</p>
+                  </div>
+                )}
                 <AlertDialogFooter>
                   <AlertDialogCancel>Close</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setStarDrillOpen(false)}>OK</AlertDialogAction>
+                  <AlertDialogAction onClick={() => {
+                    setStarDrillOpen(false);
+                    setStarDrillPlant(null);
+                    setStarDrillPlantId(null);
+                  }}>OK</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -932,68 +964,44 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(() => {
-              // Default dataset of benchmarked BPs with images - show 2 entries
-              const defaultRows = [
-                {
-                  bp: "Smart Cart Movement & Management through AMR",
-                  origin: "Greater Noida (Ecotech 1)",
-                  copies: [
-                    { plant: "Kanchipuram", date: "2025-02-18" },
-                    { plant: "Shahjahanpur", date: "2025-02-24" },
-                  ],
-                  hasImage: true
-                },
-                {
-                  bp: "Empty Cart Feeding System (Manual → Auto)",
-                  origin: "Greater Noida (Ecotech 1)",
-                  copies: [
-                    { plant: "Greater Noida (Ecotech 1)", date: "2025-04-20" },
-                    { plant: "Rajpura", date: "2025-04-28" },
-                  ],
-                  hasImage: true
-                },
-              ];
-              
-              // Use copySpread if it exists and has items with hasImage, otherwise use default
-              const allRows = (copySpread && copySpread.length > 0 && copySpread.some(row => row.hasImage))
-                ? copySpread
-                : defaultRows;
-              
-              // Filter to show only BPs with images and limit to 2 entries
-              const rows = allRows.filter(row => row.hasImage).slice(0, 2);
-
-              return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="py-2">BP Name</th>
-                        <th className="py-2">Origin Plant</th>
-                        <th className="py-2">Horizontally Deployed (Nos)</th>
+            {copySpreadLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : benchmarkedBPs && benchmarkedBPs.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-2">BP Name</th>
+                      <th className="py-2">Origin Plant</th>
+                      <th className="py-2">Horizontally Deployed (Nos)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {benchmarkedBPs.slice(0, 2).map((row) => (
+                      <tr
+                        key={row.bp}
+                        className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
+                        onClick={() => {
+                          setBpSpreadBP(row.bp);
+                          setBpSpreadRows(row.copies);
+                          setBpSpreadOpen(true);
+                        }}
+                      >
+                        <td className="py-2 font-medium">{row.bp}</td>
+                        <td className="py-2">{row.origin}</td>
+                        <td className="py-2">{row.copies.length}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {rows.map((row) => (
-                        <tr
-                          key={row.bp}
-                          className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
-                          onClick={() => {
-                            setBpSpreadBP(row.bp);
-                            setBpSpreadRows(row.copies);
-                            setBpSpreadOpen(true);
-                          }}
-                        >
-                          <td className="py-2 font-medium">{row.bp}</td>
-                          <td className="py-2">{row.origin}</td>
-                          <td className="py-2">{row.copies.length}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No copy spread data available</p>
+              </div>
+            )}
 
             <AlertDialog open={bpSpreadOpen} onOpenChange={setBpSpreadOpen}>
               <AlertDialogContent>
@@ -1283,73 +1291,65 @@ const HQAdminDashboard = ({ onViewPractice, thisMonthTotal, ytdTotal, copySpread
             <CardTitle>Latest Best Practices</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { 
-                  title: "Smart Cart Movement & Management through AMR", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  submitted: "2 hours ago"
-                },
-                { 
-                  title: "Empty Cart Feeding System (Manual → Auto)", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Productivity", 
-                  submitted: "4 hours ago"
-                },
-                { 
-                  title: "Smart Inbound Logistics through AGV", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  submitted: "1 day ago"
-                },
-                { 
-                  title: "Injection Machines Robotic Operation", 
-                  plant: "Greater Noida (Ecotech 1)", 
-                  category: "Automation", 
-                  submitted: "2 days ago"
-                }
-              ].map((activity, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                  onClick={() => {
-                    navigate(`/practices/${practice.id}`);
-                  }}
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium">{activity.title}</h4>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        {activity.category}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{activity.plant}</span>
-                      <span className="text-xs text-muted-foreground">• {activity.submitted}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onViewPractice) {
-                          onViewPractice({
-                            title: activity.title,
-                            category: activity.category,
-                            plant: activity.plant
-                          });
-                        } else {
-                          navigate("/practices");
-                        }
+            {recentPracticesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : recentPractices && recentPractices.length > 0 ? (
+              <div className="space-y-4">
+                {recentPractices.map((practice) => {
+                  // Calculate time ago from created_at
+                  const createdDate = practice.created_at ? new Date(practice.created_at) : null;
+                  const timeAgo = createdDate
+                    ? (() => {
+                        const diffMs = Date.now() - createdDate.getTime();
+                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const diffDays = Math.floor(diffHours / 24);
+                        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                        return 'Just now';
+                      })()
+                    : 'Recently';
+                  
+                  return (
+                    <div 
+                      key={practice.id} 
+                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
+                      onClick={() => {
+                        navigate(`/practices/${practice.id}`);
                       }}
                     >
-                      Review
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">{practice.title}</h4>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {practice.category_name || practice.category || "Other"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{practice.plant_name || practice.plant || "Unknown Plant"}</span>
+                          <span className="text-xs text-muted-foreground">• {timeAgo}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/practices/${practice.id}`);
+                          }}
+                        >
+                          Review
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No recent practices available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

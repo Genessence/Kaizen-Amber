@@ -21,26 +21,6 @@ import { useCategories } from "@/hooks/useCategories";
 import { usePlants } from "@/hooks/usePlants";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 
-interface Practice {
-  id: string;
-  title: string;
-  category: string;
-  submittedBy: string;
-  plant: string;
-  submittedDate: string;
-  description: string;
-  problemStatement: string;
-  solution: string;
-  benefits: string[];
-  metrics: string;
-  implementation: string;
-  questions: number;
-  savings?: string;
-  areaImplemented?: string;
-  beforeImage?: string;
-  afterImage?: string;
-}
-
 interface PracticeListProps {
   userRole: "plant" | "hq";
   isBenchmarked?: (id?: string) => boolean;

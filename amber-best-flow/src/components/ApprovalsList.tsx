@@ -30,37 +30,48 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
   const [showFilters, setShowFilters] = useState(false);
   const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
-  // Fetch approved practices that are NOT benchmarked
+  // Fetch submitted practices (awaiting approval) OR approved practices (not benchmarked)
+  // For now, fetch submitted practices - these need to be approved first
   const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
-    status: 'approved',
-    is_benchmarked: false,
+    status: 'submitted',
     limit: 100,
   });
 
   const benchmarkMutation = useBenchmarkPractice();
   const unbenchmarkMutation = useUnbenchmarkPractice();
 
+  // Helper function to check if a practice is benchmarked
+  const checkIsBenchmarked = (practiceId: string, practiceIsBenchmarked?: boolean): boolean => {
+    // Check both the practice's is_benchmarked flag and the callback function
+    return practiceIsBenchmarked || isBenchmarked?.(practiceId) || false;
+  };
+
   // Transform practices to include full details
   const practices = useMemo(() => {
     if (!practicesData?.data) return [];
     
-    return practicesData.data.map((practice: any) => ({
-      id: practice.id,
-      practice_id: practice.id,
-      title: practice.title,
-      category: practice.category_name || practice.category,
-      category_name: practice.category_name || practice.category,
-      plant: practice.plant_name || practice.plant,
-      plant_name: practice.plant_name || practice.plant,
-      description: practice.description || `${practice.title} - Best practice from ${practice.plant_name || practice.plant}`,
-      submitted_date: practice.submitted_date,
-      benchmarked_date: practice.benchmarked_date,
-      copy_count: 0, // Would need separate query
-      is_benchmarked: practice.is_benchmarked || false,
-      question_count: 0, // Would need separate query
-      submitted_by_name: practice.submitted_by_name || practice.submitted_by || "Unknown",
-    }));
-  }, [practicesData]);
+    return practicesData.data.map((practice: any) => {
+      const practiceId = practice.id;
+      const isBenchmarkedValue = checkIsBenchmarked(practiceId, practice.is_benchmarked);
+      
+      return {
+        id: practiceId,
+        practice_id: practiceId,
+        title: practice.title,
+        category: practice.category_name || practice.category,
+        category_name: practice.category_name || practice.category,
+        plant: practice.plant_name || practice.plant,
+        plant_name: practice.plant_name || practice.plant,
+        description: practice.description || `${practice.title} - Best practice from ${practice.plant_name || practice.plant}`,
+        submitted_date: practice.submitted_date,
+        benchmarked_date: practice.benchmarked_date,
+        copy_count: 0, // Would need separate query
+        is_benchmarked: isBenchmarkedValue,
+        question_count: 0, // Would need separate query
+        submitted_by_name: practice.submitted_by_name || practice.submitted_by || "Unknown",
+      };
+    });
+  }, [practicesData, isBenchmarked]);
 
   // Filter by search term
   const filteredPractices = useMemo(() => {
@@ -83,11 +94,11 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Approved Best Practices</h1>
+          <h1 className="text-3xl font-bold">Practice Approvals</h1>
           <p className="text-muted-foreground mt-1">
             {userRole === "hq" 
-              ? "Review and benchmark approved best practices"
-              : "View approved best practices from your plant"
+              ? "Review submitted practices and approve them for benchmarking"
+              : "View submitted practices from your plant"
             }
           </p>
         </div>
@@ -129,7 +140,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileCheck2 className="h-5 w-5 text-primary" />
-            <span>Approved Best Practices</span>
+            <span>Submitted Practices</span>
             {!practicesLoading && <Badge variant="outline">{filteredPractices.length}</Badge>}
           </CardTitle>
         </CardHeader>
@@ -139,9 +150,9 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
           ) : filteredPractices.length === 0 ? (
             <div className="text-center py-12">
               <FileCheck2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground">No approved practices found.</p>
+              <p className="text-muted-foreground">No practices found.</p>
               <p className="text-sm text-muted-foreground mt-2">
-                {searchTerm ? "Try adjusting your search terms." : "No practices are approved and ready for benchmarking yet."}
+                {searchTerm ? "Try adjusting your search terms." : "No practices are submitted and awaiting approval yet."}
               </p>
             </div>
           ) : (
@@ -192,9 +203,11 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
                         {practice.copy_count} {practice.copy_count === 1 ? 'Copy' : 'Copies'}
                       </Badge>
                     )}
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">
-                      Benchmarked
-                    </Badge>
+                    {practice.is_benchmarked && (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">
+                        Benchmarked
+                      </Badge>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -207,14 +220,13 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
                     </Button>
                     <Button
                       size="sm"
-                      variant={(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "outline" : "default"}
+                      variant={practice.is_benchmarked ? "outline" : "default"}
                       onClick={async (e) => {
                         e.stopPropagation();
                         e.preventDefault();
                         try {
                           setProcessingPracticeId(practice.id);
-                          const isCurrentlyBenchmarked = practice.is_benchmarked || isBenchmarked?.(practice.id);
-                          if (isCurrentlyBenchmarked) {
+                          if (practice.is_benchmarked) {
                             await unbenchmarkMutation.mutateAsync(practice.id);
                           } else {
                             await benchmarkMutation.mutateAsync(practice.id);
@@ -231,10 +243,10 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
                       {processingPracticeId === practice.id ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmarking..." : "Benchmarking..."}
+                          {practice.is_benchmarked ? "Unbenchmarking..." : "Benchmarking..."}
                         </>
                       ) : (
-                        (practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmark" : "Benchmark"
+                        practice.is_benchmarked ? "Unbenchmark" : "Benchmark"
                       )}
                     </Button>
                   </div>

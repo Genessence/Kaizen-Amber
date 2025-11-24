@@ -138,11 +138,16 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
 
   // Removed status concept (approved/revision/pending)
 
-  const getCategoryColor = (category: string | undefined) => {
-    if (!category) {
+  const getCategoryColor = (category: string | undefined | { name?: string } | any) => {
+    // Handle category as object or string
+    const categoryName = typeof category === 'string' 
+      ? category 
+      : (category?.name || category?.category_name || '');
+    
+    if (!categoryName || typeof categoryName !== 'string') {
       return "bg-gray-50 text-gray-700 border-gray-200";
     }
-    switch (category.toLowerCase()) {
+    switch (categoryName.toLowerCase()) {
       case "quality":
         return "bg-blue-50 text-blue-700 border-blue-200";
       case "cost":

@@ -62,6 +62,15 @@ interface HQAdminDashboardProps {
 const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }: HQAdminDashboardProps) => {
   const navigate = useNavigate();
   
+  // State declarations (must be before hooks that use them)
+  const [starRatingsFormat, setStarRatingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [showDivisionSelector, setShowDivisionSelector] = useState(false);
+  const [division, setDivision] = useState<"all" | "component">("all");
+  const [plantPerformanceView, setPlantPerformanceView] = useState<"yearly" | "currentMonth">("yearly");
+  const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
+  const [lbDrillOpen, setLbDrillOpen] = useState(false);
+  
   // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
   const { data: unifiedData, isLoading: unifiedLoading } = useUnifiedDashboard(starRatingsFormat);
   
@@ -89,16 +98,6 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   const benchmarkStatsLoading = unifiedLoading;
   const starRatingsLoading = unifiedLoading;
   const recentPracticesLoading = unifiedLoading;
-  
-  // State declarations (must be before hooks that use them)
-  const [showDivisionSelector, setShowDivisionSelector] = useState(false);
-  const [division, setDivision] = useState<"all" | "component">("all");
-  const [plantPerformanceView, setPlantPerformanceView] = useState<"yearly" | "currentMonth">("yearly");
-  const [starRatingsFormat, setStarRatingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
-  const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
-  const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
-  // Leaderboard drilldown (legacy shape kept for compatibility)
-  const [lbDrillOpen, setLbDrillOpen] = useState(false);
   const [lbDrillPlant, setLbDrillPlant] = useState<string | null>(null);
   const [lbDrillData, setLbDrillData] = useState<{
     copied?: { title: string; points: number; date: string }[];

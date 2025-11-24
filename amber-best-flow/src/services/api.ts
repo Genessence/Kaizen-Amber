@@ -286,7 +286,10 @@ class APIService {
     if (params?.plant_id) queryParams.append('plant_id', params.plant_id);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.search) queryParams.append('search', params.search);
-    if (params?.is_benchmarked !== undefined) queryParams.append('is_benchmarked', params.is_benchmarked.toString());
+    if (params?.is_benchmarked !== undefined) {
+      // Convert boolean to string 'true' or 'false'
+      queryParams.append('is_benchmarked', params.is_benchmarked ? 'true' : 'false');
+    }
     if (params?.limit) queryParams.append('page_size', params.limit.toString());
     if (params?.offset) {
       const page = Math.floor(params.offset / (params.limit || 20)) + 1;
@@ -307,8 +310,12 @@ class APIService {
         id: item.id,
         title: item.title,
         description: item.description,
-        category: item.category,
-        plant: item.plant,
+        category_id: item.category?.id || item.category_id,
+        category_name: item.category?.name || (typeof item.category === 'string' ? item.category : ''),
+        category: item.category?.name || (typeof item.category === 'string' ? item.category : ''),
+        plant_id: item.plant?.id || item.plant_id,
+        plant_name: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
+        plant: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
         status: item.status,
         is_benchmarked: item.is_benchmarked || false,
         submitted_date: item.submitted_date,

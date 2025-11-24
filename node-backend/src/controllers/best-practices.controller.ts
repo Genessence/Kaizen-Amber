@@ -18,7 +18,7 @@ export class BestPracticesController {
       const categoryId = req.query.category_id as string;
       const plantId = req.query.plant_id as string;
       const status = req.query.status as string;
-      const isBenchmarked = req.query.is_benchmarked === 'true';
+      const isBenchmarkedParam = req.query.is_benchmarked as string;
 
       const skip = (page - 1) * pageSize;
 
@@ -46,10 +46,13 @@ export class BestPracticesController {
         where.status = status;
       }
 
-      if (isBenchmarked) {
+      // Handle is_benchmarked filter: 'true', 'false', or undefined
+      if (isBenchmarkedParam === 'true') {
         where.benchmarked = {
           isNot: null,
         };
+      } else if (isBenchmarkedParam === 'false') {
+        where.benchmarked = null;
       }
 
       // Get total count

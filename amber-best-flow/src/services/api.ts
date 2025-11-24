@@ -1,9 +1,21 @@
 /**
  * API Service Layer
- * Handles all communication with the FastAPI backend
- * 
- * NOTE: All data endpoints now use mock data. Authentication endpoints still use real backend.
+ * Handles all communication with the Node.js backend
  */
+
+/**
+ * Format a date string to relative time (e.g., "2 hours ago", "3 days ago")
+ */
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  return 'Just now';
+}
 
 import type {
   User,
@@ -47,30 +59,7 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-// Import mock data
-import {
-  mockPlants,
-  mockCategories,
-  mockBestPractices,
-  toListItem,
-  mockBenchmarkedPractices,
-  mockCopySpread,
-  mockLeaderboard,
-  mockPlantBreakdown,
-  mockDashboardOverview,
-  mockPlantPerformance,
-  mockCategoryBreakdown,
-  mockPlantSavings,
-  mockStarRatings,
-  mockMonthlyTrend,
-  mockBenchmarkStats,
-  mockUnifiedDashboard,
-  mockQuestions,
-  mockNotifications,
-} from '@/mocks';
-
-// Helper function to simulate network delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Mock data imports removed - all endpoints now use real backend APIs
 
 class APIService {
   /**
@@ -345,12 +334,15 @@ class APIService {
       id: data.id,
       title: data.title,
       description: data.description,
-      category_id: data.category_id,
-      category: data.category,
-      submitted_by_user_id: data.submitted_by_user_id,
-      submitted_by: data.submitted_by,
-      plant_id: data.plant_id,
-      plant: data.plant,
+      category_id: data.category?.id || data.category_id,
+      category_name: data.category?.name || data.category,
+      category: data.category?.name || data.category,
+      submitted_by_user_id: data.submitted_by?.id || data.submitted_by_user_id,
+      submitted_by_name: data.submitted_by?.full_name || data.submitted_by,
+      submitted_by: data.submitted_by?.full_name || data.submitted_by,
+      plant_id: data.plant?.id || data.plant_id,
+      plant_name: data.plant?.name || data.plant,
+      plant: data.plant?.name || data.plant,
       problem_statement: data.problem_statement,
       solution: data.solution,
       benefits: data.benefits,
@@ -406,7 +398,7 @@ class APIService {
   }
 
   /**
-   * Get my plant's practices (MOCK)
+   * Get my plant's practices
    */
   async getMyPractices(): Promise<BestPracticeListItem[]> {
     const data = await this.request<any[]>('/best-practices/my-practices');
@@ -464,7 +456,7 @@ class APIService {
   }
 
   /**
-   * List all benchmarked practices (MOCK)
+   * List all benchmarked practices
    */
   async listBenchmarkedPractices(params?: {
     plant_id?: string;
@@ -569,25 +561,30 @@ class APIService {
       }),
     });
 
+    // Fetch the original practice to get origin plant ID
+    const originalPractice = await this.getBestPractice(data.original_practice_id);
+    const originPlantId = originalPractice?.plant_id || '';
+
+    // Fetch the full copied practice details
+    const copiedPractice = await this.getBestPractice(response.id);
+
     return {
       success: true,
       data: {
-        copied_practice: {
-          id: response.id,
-          title: response.title,
-        },
+        copied_practice: copiedPractice,
         copy_record: {
-          id: response.id,
+          id: response.id, // This is the copied practice ID
           original_practice_id: data.original_practice_id,
           copied_practice_id: response.id,
           copying_plant_id: response.copying_plant.id,
           copied_date: response.copied_date,
           implementation_status: response.implementation_status,
+          created_at: response.copied_date,
         },
         points_awarded: {
-          origin_points: 10,
-          copier_points: 5,
-          origin_plant_id: '',
+          origin_points: 10, // Backend awards 10 points to origin plant
+          copier_points: 5, // Backend awards 5 points to copying plant
+          origin_plant_id: originPlantId,
           copying_plant_id: response.copying_plant.id,
         },
       },
@@ -711,7 +708,7 @@ class APIService {
   // ============= Leaderboard =============
 
   /**
-   * Get current year leaderboard (MOCK)
+   * Get current year leaderboard
    */
   async getLeaderboard(year?: number): Promise<LeaderboardEntry[]> {
     const params = new URLSearchParams();
@@ -728,36 +725,87 @@ class APIService {
   }
 
   /**
-   * Get plant leaderboard breakdown (MOCK)
+   * Get plant leaderboard breakdown
    */
   async getPlantBreakdown(plantId: string, year?: number): Promise<PlantLeaderboardBreakdown> {
-    await delay(150);
-    // Return mock breakdown for plant-001, or create one for other plants
-    if (plantId === 'plant-001') {
-      return mockPlantBreakdown;
-    }
-    // Create a simple breakdown for other plants
-    const plant = mockPlants.find(p => p.id === plantId);
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    const query = params.toString();
+    
+    const response = await this.request<{
+      plant: { id: string; name: string; short_name: string };
+      year: number;
+      total_points: number;
+      origin_points: number;
+      copier_points: number;
+      breakdown: Array<{
+        type: 'Origin' | 'Copier';
+        points: number;
+        date: string;
+        bp_title: string;
+      }>;
+    }>(`/leaderboard/plant/${plantId}${query ? '?' + query : ''}`);
+
+    // Separate breakdown into copied and originated
+    const copied = response.breakdown
+      .filter((item) => item.type === 'Copier')
+      .map((item) => ({
+        bp_title: item.bp_title,
+        bp_id: '', // Backend doesn't return practice ID in breakdown
+        points: item.points,
+        date: item.date,
+      }));
+
+    // Group originated practices by bp_title to count copies
+    const originatedMap = new Map<string, {
+      bp_title: string;
+      bp_id: string;
+      copies_count: number;
+      points: number;
+    }>();
+
+    response.breakdown
+      .filter((item) => item.type === 'Origin')
+      .forEach((item) => {
+        const existing = originatedMap.get(item.bp_title);
+        if (existing) {
+          existing.copies_count += 1;
+          existing.points += item.points;
+        } else {
+          originatedMap.set(item.bp_title, {
+            bp_title: item.bp_title,
+            bp_id: '', // Backend doesn't return practice ID in breakdown
+            copies_count: 1,
+            points: item.points,
+          });
+        }
+      });
+
+    const originated = Array.from(originatedMap.values());
+
     return {
-      plant_id: plantId,
-      plant_name: plant?.name || 'Unknown',
-      copied: [],
-      copiedCount: 0,
-      copiedPoints: 0,
-      originated: [],
-      originatedCount: 0,
-      originatedPoints: 0,
+      plant_id: response.plant.id,
+      plant_name: response.plant.name,
+      copied,
+      copiedCount: copied.length,
+      copiedPoints: response.copier_points,
+      originated,
+      originatedCount: originated.length,
+      originatedPoints: response.origin_points,
     };
   }
 
   /**
-   * Recalculate leaderboard (HQ only) (MOCK)
+   * Recalculate leaderboard (HQ only)
    */
   async recalculateLeaderboard(year?: number): Promise<APIResponse<{ message: string }>> {
-    await delay(300);
+    const response = await this.request<{ message: string }>('/leaderboard/recalculate', {
+      method: 'POST',
+      body: JSON.stringify({ year: year || new Date().getFullYear() }),
+    });
     return {
       success: true,
-      data: { message: 'Leaderboard recalculated successfully' },
+      data: response,
     };
   }
 
@@ -864,11 +912,33 @@ class APIService {
           console.log('Final category breakdown length:', mapped.length);
           return mapped;
         })(),
-        recent_benchmarked: data.recent_benchmarked || [],
+        recent_benchmarked: (data.recent_benchmarked || []).map((bp: any) => ({
+          practice_id: bp.id || bp.practice_id || '',
+          practice_title: bp.title || bp.practice_title || '',
+          practice_category: bp.category || bp.practice_category || '',
+          plant_name: bp.plant || bp.plant_name || '',
+          benchmarked_date: bp.date ? formatRelativeTime(bp.date) : bp.benchmarked_date || '',
+          benchmarked_date_iso: bp.date || bp.benchmarked_date_iso || '',
+          savings_amount: bp.savings_amount || null,
+          savings_currency: bp.savings_currency || 'lakhs',
+          savings_period: bp.savings_period || 'annually',
+        })),
         star_ratings: data.star_ratings || [],
         plant_performance: data.plant_performance || [],
         benchmark_stats: data.benchmark_stats || null,
-        recent_practices: data.recent_practices || [],
+        recent_practices: (data.recent_practices || []).map((practice: any) => ({
+          id: practice.id || '',
+          title: practice.title || '',
+          category_name: practice.category || practice.category_name || '',
+          plant_name: practice.plant || practice.plant_name || '',
+          plant_short_name: practice.plant_short_name || '',
+          submitted_by: practice.submitted_by || '',
+          submitted_date: practice.submitted_date ? formatRelativeTime(practice.submitted_date) : '',
+          submitted_date_iso: practice.submitted_date || '',
+          savings_amount: practice.savings_amount || null,
+          savings_currency: practice.savings_currency || 'lakhs',
+          question_count: 0, // Will be populated if needed from practice details
+        })),
         my_practices: data.my_practices || [],
         monthly_trend: data.monthly_trend || [],
       },
@@ -1135,7 +1205,7 @@ class APIService {
   }
 
   /**
-   * List practice images (MOCK)
+   * List practice images
    */
   async getPracticeImages(practiceId: string): Promise<PracticeImage[]> {
     return this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
@@ -1151,7 +1221,7 @@ class APIService {
   }
 
   /**
-   * Complete file upload flow (request URL, upload, confirm) (MOCK)
+   * Complete file upload flow (request URL, upload, confirm)
    */
   async uploadPracticeImage(
     practiceId: string,
@@ -1168,7 +1238,7 @@ class APIService {
       file_size: file.size,
     });
 
-    // Step 2: Upload to Azure (mock)
+    // Step 2: Upload to Azure Blob Storage
     await this.uploadToAzure(urlData.upload_url, file);
 
     // Step 3: Confirm upload
@@ -1185,71 +1255,96 @@ class APIService {
   }
 
   /**
-   * Get user's notifications (MOCK)
+   * Get user's notifications
    */
   async getNotifications(params?: {
     limit?: number;
     offset?: number;
     is_read?: boolean;
   }): Promise<NotificationListResponse> {
-    await delay(100);
-    let filtered = [...mockNotifications];
-    
-    if (params?.is_read !== undefined) {
-      filtered = filtered.filter(n => n.is_read === params.is_read);
+    const queryParams = new URLSearchParams();
+    if (params?.limit) {
+      const page = Math.floor((params.offset || 0) / params.limit) + 1;
+      queryParams.append('page', page.toString());
+      queryParams.append('page_size', params.limit.toString());
     }
-    
-    const offset = params?.offset || 0;
-    const limit = params?.limit || 20;
-    const total = filtered.length;
-    const paginated = filtered.slice(offset, offset + limit);
-    
+    if (params?.is_read !== undefined) {
+      queryParams.append('is_read', params.is_read.toString());
+    }
+
+    const response = await this.request<{
+      items: any[];
+      total: number;
+      page: number;
+      page_size: number;
+      total_pages: number;
+    }>(`/notifications${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+
     return {
       success: true,
-      data: paginated,
+      data: response.items.map((item) => ({
+        id: item.id,
+        user_id: item.user_id,
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        related_practice_id: item.related_practice_id,
+        related_question_id: item.related_question_id,
+        practice_title: item.practice_title,
+        is_read: item.is_read,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      })),
       pagination: {
-        total,
-        limit,
-        offset,
-        has_more: offset + limit < total,
+        total: response.total,
+        limit: response.page_size,
+        offset: (response.page - 1) * response.page_size,
+        has_more: response.page < response.total_pages,
       },
     };
   }
 
   /**
-   * Get unread notification count (MOCK)
+   * Get unread notification count
    */
   async getUnreadNotificationCount(): Promise<UnreadCountResponse> {
-    await delay(100);
+    const response = await this.request<{ unread_count: number }>('/notifications/unread-count');
     return {
-      unread_count: mockNotifications.filter(n => !n.is_read).length,
+      unread_count: response.unread_count || 0,
     };
   }
 
   /**
-   * Mark notification as read (MOCK)
+   * Mark notification as read
    */
   async markNotificationAsRead(notificationId: string): Promise<Notification> {
-    await delay(150);
-    const notification = mockNotifications.find(n => n.id === notificationId);
+    const response = await this.request<any>(`/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+    });
+    
+    // Backend returns { id, read: true }, but we need full notification
+    // Fetch the notification to get full details
+    const notifications = await this.getNotifications({ limit: 100 });
+    const notification = notifications.data.find(n => n.id === notificationId);
+    
     if (!notification) {
       throw new Error('Notification not found');
     }
-    notification.is_read = true;
-    notification.updated_at = new Date().toISOString();
-    return notification;
+    
+    return {
+      ...notification,
+      is_read: true,
+      updated_at: new Date().toISOString(),
+    };
   }
 
   /**
-   * Mark all notifications as read (MOCK)
+   * Mark all notifications as read
    */
   async markAllNotificationsAsRead(): Promise<{ success: boolean; message: string }> {
-    await delay(200);
-    mockNotifications.forEach(n => {
-      n.is_read = true;
-      n.updated_at = new Date().toISOString();
+    return this.request<{ success: boolean; message: string }>('/notifications/read-all', {
+      method: 'PATCH',
     });
-    return { success: true, message: 'All notifications marked as read' };
   }
 }
 

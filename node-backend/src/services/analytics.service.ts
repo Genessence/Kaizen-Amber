@@ -243,6 +243,9 @@ export class AnalyticsService {
       category: bp.practice.category.name,
       plant: bp.practice.plant.name,
       date: bp.benchmarkedDate.toISOString(),
+      savings_amount: bp.practice.savingsAmount ? Number(bp.practice.savingsAmount) : null,
+      savings_currency: bp.practice.savingsCurrency || 'lakhs',
+      savings_period: bp.practice.savingsPeriod || 'annually',
     }));
   }
 

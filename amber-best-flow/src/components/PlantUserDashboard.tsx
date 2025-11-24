@@ -122,6 +122,7 @@ const PlantUserDashboard = ({
   // Extract data from unified response
   const overview = unifiedData?.data?.overview;
   const myPractices = unifiedData?.data?.my_practices;
+  const recentPractices = unifiedData?.data?.recent_practices; // For "Latest Best Practices"
   const leaderboardData = unifiedData?.data?.leaderboard;
   const copySpreadData = unifiedData?.data?.copy_spread;
   const categoryBreakdown = unifiedData?.data?.category_breakdown || [];
@@ -1253,55 +1254,80 @@ const PlantUserDashboard = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {(benchmarkedPractices || []).map((bp, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                  onClick={() => {
-                    navigate(`/practices/${bp.practice_id}`);
-                  }}
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium">{bp.practice_title}</h4>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        {bp.practice_category}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {bp.plant_name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        • {bp.benchmarked_date}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
+            {unifiedLoading ? (
+              <ListSkeleton items={4} />
+            ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
+              <div className="space-y-4">
+                {benchmarkedPractices
+                  .slice(0, 4)
+                  .map((bp: any, index: number) => (
+                    <div
+                      key={bp.practice_id || index}
+                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
+                      onClick={() => {
                         navigate(`/practices/${bp.practice_id}`);
                       }}
                     >
-                      View Details
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyImplement(bp);
-                      }}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      <Copy className="h-3 w-3 mr-1" />
-                      Copy & Implement
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">{bp.practice_title}</h4>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {bp.practice_category}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {bp.plant_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            • {bp.benchmarked_date}
+                          </span>
+                        </div>
+                        {bp.savings_amount && (
+                          <div className="mt-2">
+                            <span className="text-xs text-muted-foreground">
+                              Expected Savings:{" "}
+                              {formatCurrency(
+                                bp.savings_amount,
+                                1,
+                                bp.savings_currency || "lakhs"
+                              )}{" "}
+                              {bp.savings_period === "monthly"
+                                ? "monthly"
+                                : "annually"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/practices/${bp.practice_id}`);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyImplement(bp);
+                          }}
+                          className="bg-primary text-primary-foreground hover:bg-primary/90"
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy & Implement
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-4">
+                No benchmarked practices available.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -1313,47 +1339,49 @@ const PlantUserDashboard = ({
             <CardTitle>Latest Best Practices</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {practicesLoading ? (
-                <ListSkeleton items={4} />
-              ) : (myPractices || []).length > 0 ? (
-                (myPractices || []).slice(0, 4).map((practice, index) => (
-                  <div
-                    key={practice.id}
-                    className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                    onClick={() => {
-                      navigate(`/practices/${practice.id}`);
-                    }}
-                  >
-                    <div className="flex-1">
-                      <h4 className="font-medium">{practice.title}</h4>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {practice.category_name}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {practice.submitted_date || "N/A"}
-                        </span>
+            {unifiedLoading ? (
+              <ListSkeleton items={4} />
+            ) : recentPractices && recentPractices.length > 0 ? (
+              <div className="space-y-4">
+                {recentPractices
+                  .slice(0, 4)
+                  .map((practice: any, index: number) => (
+                    <div
+                      key={practice.id || index}
+                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
+                      onClick={() => {
+                        navigate(`/practices/${practice.id}`);
+                      }}
+                    >
+                      <div className="flex-1">
+                        <h4 className="font-medium">{practice.title}</h4>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {practice.category_name}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {practice.submitted_date || "N/A"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {practice.question_count > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="bg-primary/10 text-primary"
+                          >
+                            {practice.question_count} Q&A
+                          </Badge>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {practice.question_count > 0 && (
-                        <Badge
-                          variant="outline"
-                          className="bg-primary/10 text-primary"
-                        >
-                          {practice.question_count} Q&A
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-muted-foreground py-4">
-                  No recent practices available.
-                </div>
-              )}
-            </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-4">
+                No recent practices available.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

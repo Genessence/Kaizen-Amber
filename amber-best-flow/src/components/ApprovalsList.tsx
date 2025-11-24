@@ -15,7 +15,7 @@ import {
 import { ListSkeleton } from "@/components/ui/skeletons";
 import { useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
-import { useBenchmarkedPractices } from "@/hooks/useBenchmarking";
+import { useBestPractices } from "@/hooks/useBestPractices";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 
 interface ApprovalsListProps {
@@ -30,37 +30,37 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
   const [showFilters, setShowFilters] = useState(false);
   const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
-  // Fetch ONLY benchmarked practices from API
-  const { data: benchmarkedList, isLoading: practicesLoading } = useBenchmarkedPractices({
+  // Fetch approved practices that are NOT benchmarked
+  const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
+    status: 'approved',
+    is_benchmarked: false,
     limit: 100,
   });
 
   const benchmarkMutation = useBenchmarkPractice();
   const unbenchmarkMutation = useUnbenchmarkPractice();
 
-  // Transform benchmarked practices to include full details
-  // Note: We'll use the practice_id to fetch full details if needed, but for now
-  // we'll use the data from benchmarkedList which has practice_title, practice_category, etc.
+  // Transform practices to include full details
   const practices = useMemo(() => {
-    if (!benchmarkedList) return [];
+    if (!practicesData?.data) return [];
     
-    return benchmarkedList.map((benchmarkedItem: any) => ({
-      id: benchmarkedItem.practice_id, // Use practice_id as the main ID
-      practice_id: benchmarkedItem.practice_id,
-      title: benchmarkedItem.practice_title,
-      category: benchmarkedItem.practice_category,
-      category_name: benchmarkedItem.practice_category,
-      plant: benchmarkedItem.plant_name,
-      plant_name: benchmarkedItem.plant_name,
-      description: `${benchmarkedItem.practice_title} - Benchmark best practice from ${benchmarkedItem.plant_name}`,
-      submitted_date: benchmarkedItem.benchmarked_date, // Use benchmarked_date as submitted_date
-      benchmarked_date: benchmarkedItem.benchmarked_date,
-      copy_count: benchmarkedItem.copy_count || 0,
-      is_benchmarked: true, // All items here are benchmarked
-      question_count: 0, // We don't have this in benchmarked list, set to 0
-      submitted_by_name: "N/A", // We don't have this in benchmarked list
+    return practicesData.data.map((practice: any) => ({
+      id: practice.id,
+      practice_id: practice.id,
+      title: practice.title,
+      category: practice.category_name || practice.category,
+      category_name: practice.category_name || practice.category,
+      plant: practice.plant_name || practice.plant,
+      plant_name: practice.plant_name || practice.plant,
+      description: practice.description || `${practice.title} - Best practice from ${practice.plant_name || practice.plant}`,
+      submitted_date: practice.submitted_date,
+      benchmarked_date: practice.benchmarked_date,
+      copy_count: 0, // Would need separate query
+      is_benchmarked: practice.is_benchmarked || false,
+      question_count: 0, // Would need separate query
+      submitted_by_name: practice.submitted_by_name || practice.submitted_by || "Unknown",
     }));
-  }, [benchmarkedList]);
+  }, [practicesData]);
 
   // Filter by search term
   const filteredPractices = useMemo(() => {
@@ -83,11 +83,11 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Benchmarked Best Practices</h1>
+          <h1 className="text-3xl font-bold">Approved Best Practices</h1>
           <p className="text-muted-foreground mt-1">
             {userRole === "hq" 
-              ? "View and manage all benchmarked best practices"
-              : "View benchmarked best practices from your plant"
+              ? "Review and benchmark approved best practices"
+              : "View approved best practices from your plant"
             }
           </p>
         </div>
@@ -129,7 +129,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileCheck2 className="h-5 w-5 text-primary" />
-            <span>Benchmarked Best Practices</span>
+            <span>Approved Best Practices</span>
             {!practicesLoading && <Badge variant="outline">{filteredPractices.length}</Badge>}
           </CardTitle>
         </CardHeader>
@@ -139,9 +139,9 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
           ) : filteredPractices.length === 0 ? (
             <div className="text-center py-12">
               <FileCheck2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground">No benchmarked practices found.</p>
+              <p className="text-muted-foreground">No approved practices found.</p>
               <p className="text-sm text-muted-foreground mt-2">
-                {searchTerm ? "Try adjusting your search terms." : "No practices have been benchmarked yet."}
+                {searchTerm ? "Try adjusting your search terms." : "No practices are approved and ready for benchmarking yet."}
               </p>
             </div>
           ) : (

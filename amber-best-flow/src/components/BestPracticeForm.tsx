@@ -51,9 +51,14 @@ interface BestPracticeFormProps {
     problemStatement?: string;
     solution?: string;
   } | null;
+  pendingCopyMeta?: {
+    originPlant?: string;
+    bpTitle?: string;
+    originalPracticeId?: string;
+  } | null;
 }
 
-const BestPracticeForm = ({ preFillData, onSubmit }: BestPracticeFormProps) => {
+const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracticeFormProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
@@ -156,6 +161,7 @@ const BestPracticeForm = ({ preFillData, onSubmit }: BestPracticeFormProps) => {
       }
 
       // Create practice data with draft status
+      // Note: Backend automatically sets submitted_date to null when status is 'draft'
       const practiceData = {
         title,
         description: solution.substring(0, 200) || title, // Use title if solution is empty
@@ -169,7 +175,7 @@ const BestPracticeForm = ({ preFillData, onSubmit }: BestPracticeFormProps) => {
         investment: investmentText || undefined,
         area_implemented: implementationArea || undefined,
         status: 'draft' as const, // Save as draft
-        submitted_date: undefined, // No submission date for drafts
+        // Don't send submitted_date - backend sets it to null for drafts
       };
 
       // Create the practice as draft
@@ -258,25 +264,53 @@ const BestPracticeForm = ({ preFillData, onSubmit }: BestPracticeFormProps) => {
         return;
       }
 
-      // Create practice data
-      const practiceData = {
-        title,
-        description: solution.substring(0, 200), // First 200 chars as description
-        category_id: category, // Now using category ID directly
-        plant_id: user?.plant_id, // Include plant_id from user context
-        problem_statement: problemStatement,
-        solution,
-        benefits: benefitsArray.length > 0 ? benefitsArray : undefined,
-        metrics: metricsText || undefined,
-        implementation: implementationText || undefined,
-        investment: investmentText || undefined,
-        area_implemented: implementationArea || undefined,
-        status: 'submitted' as const,
-        submitted_date: new Date().toISOString().split('T')[0],
-      };
+      // Check if this is a copy operation
+      const isCopyOperation = !!pendingCopyMeta?.originalPracticeId;
 
-      // Create the practice
-      const result = await createMutation.mutateAsync(practiceData);
+      let result: any;
+
+      if (isCopyOperation) {
+        // Use copy & implement API
+        if (!pendingCopyMeta.originalPracticeId) {
+          toast.error("Original practice ID is missing");
+          setIsSubmitting(false);
+          return;
+        }
+
+        const copyData = {
+          original_practice_id: pendingCopyMeta.originalPracticeId,
+          customized_title: title,
+          customized_description: solution.substring(0, 200),
+          customized_problem_statement: problemStatement,
+          customized_solution: solution,
+          implementation_status: 'planning' as const,
+        };
+
+        const copyResponse = await copyMutation.mutateAsync(copyData);
+        result = {
+          id: copyResponse.data.copied_practice.id,
+          title: copyResponse.data.copied_practice.title,
+        };
+      } else {
+        // Create new practice
+        const practiceData = {
+          title,
+          description: solution.substring(0, 200), // First 200 chars as description
+          category_id: category, // Now using category ID directly
+          plant_id: user?.plant_id, // Include plant_id from user context
+          problem_statement: problemStatement,
+          solution,
+          benefits: benefitsArray.length > 0 ? benefitsArray : undefined,
+          metrics: metricsText || undefined,
+          implementation: implementationText || undefined,
+          investment: investmentText || undefined,
+          area_implemented: implementationArea || undefined,
+          status: 'submitted' as const,
+          // Don't send submitted_date - backend sets it automatically when status is 'submitted'
+        };
+
+        result = await createMutation.mutateAsync(practiceData);
+      }
 
       if (!result.id) {
         throw new Error('Practice creation failed - no ID returned');

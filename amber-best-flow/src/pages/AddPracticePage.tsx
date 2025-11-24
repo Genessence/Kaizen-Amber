@@ -17,6 +17,7 @@ const AddPracticePage = () => {
   return (
     <BestPracticeForm 
       preFillData={preFillData}
+      pendingCopyMeta={pendingCopyMeta}
     />
   );
 };

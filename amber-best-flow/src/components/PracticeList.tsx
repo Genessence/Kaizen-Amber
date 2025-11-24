@@ -16,6 +16,7 @@ import {
   MapPin,
   Loader2
 } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { useBestPractices } from "@/hooks/useBestPractices";
 import { useCategories } from "@/hooks/useCategories";
 import { usePlants } from "@/hooks/usePlants";
@@ -37,15 +38,17 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
   // Fetch data from API - sorted by creation date (newest first)
+  // Reduced limit for better performance - use pagination if needed
   const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
     category_id: categoryFilter !== "all" ? categoryFilter : undefined,
     plant_id: plantFilter !== "all" ? plantFilter : undefined,
     search: searchTerm || undefined,
     start_date: startDate || undefined,
     end_date: endDate || undefined,
-    limit: 100,
+    limit: 50, // Reduced from 100 for faster initial load
     sort_by: 'created_at', // Sort by creation date
     sort_order: 'desc', // Newest first
   });
@@ -331,12 +334,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
         </CardHeader>
         <CardContent>
           {practicesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading best practices...</p>
-              </div>
-            </div>
+            <ListSkeleton items={5} />
           ) : filteredPractices.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -424,6 +422,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                         e.stopPropagation(); 
                         e.preventDefault();
                         try {
+                          setProcessingPracticeId(practice.id);
                           const isCurrentlyBenchmarked = practice.is_benchmarked || isBenchmarked?.(practice.id);
                           if (isCurrentlyBenchmarked) {
                             await unbenchmarkMutation.mutateAsync(practice.id);
@@ -434,11 +433,13 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                         } catch (error: any) {
                           console.error('Failed to toggle benchmark:', error);
                           // Error toast is handled by mutation hooks
+                        } finally {
+                          setProcessingPracticeId(null);
                         }
                       }}
-                      disabled={benchmarkMutation.isPending || unbenchmarkMutation.isPending}
+                      disabled={processingPracticeId === practice.id}
                     >
-                      {benchmarkMutation.isPending || unbenchmarkMutation.isPending ? (
+                      {processingPracticeId === practice.id ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmarking..." : "Benchmarking..."}

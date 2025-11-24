@@ -1,6 +1,8 @@
 /**
  * API Service Layer
  * Handles all communication with the FastAPI backend
+ * 
+ * NOTE: All data endpoints now use mock data. Authentication endpoints still use real backend.
  */
 
 import type {
@@ -31,6 +33,7 @@ import type {
   MonthlyTrend,
   BenchmarkStats,
   CopySpreadItem,
+  CopyDetail,
   PeriodType,
   CurrencyFormat,
   PresignedUrlRequest,
@@ -43,6 +46,31 @@ import type {
 } from '@/types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+
+// Import mock data
+import {
+  mockPlants,
+  mockCategories,
+  mockBestPractices,
+  toListItem,
+  mockBenchmarkedPractices,
+  mockCopySpread,
+  mockLeaderboard,
+  mockPlantBreakdown,
+  mockDashboardOverview,
+  mockPlantPerformance,
+  mockCategoryBreakdown,
+  mockPlantSavings,
+  mockStarRatings,
+  mockMonthlyTrend,
+  mockBenchmarkStats,
+  mockUnifiedDashboard,
+  mockQuestions,
+  mockNotifications,
+} from '@/mocks';
+
+// Helper function to simulate network delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 class APIService {
   /**
@@ -57,9 +85,10 @@ class APIService {
    * Generic request wrapper with error handling
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    // Ensure method is explicitly set and preserved (method must come after spreading options)
+    const method = options.method || 'GET';
+    
     try {
-      // Ensure method is explicitly set and preserved (method must come after spreading options)
-      const method = options.method || 'GET';
       const requestOptions: RequestInit = {
         ...options,
         method: method, // Set method after spreading to ensure it's not overwritten
@@ -211,8 +240,8 @@ class APIService {
     if (isActive !== undefined) {
       params.append('is_active', isActive.toString());
     }
-    const query = params.toString() ? `?${params}` : '';
-    return this.request<Plant[]>(`/plants${query}`);
+    const query = params.toString();
+    return this.request<Plant[]>(`/plants${query ? '?' + query : ''}`);
   }
 
   /**
@@ -263,45 +292,108 @@ class APIService {
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<BestPracticeListItem>> {
-    const searchParams = new URLSearchParams();
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, value.toString());
-        }
-      });
+    const queryParams = new URLSearchParams();
+    if (params?.category_id) queryParams.append('category_id', params.category_id);
+    if (params?.plant_id) queryParams.append('plant_id', params.plant_id);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.is_benchmarked !== undefined) queryParams.append('is_benchmarked', params.is_benchmarked.toString());
+    if (params?.limit) queryParams.append('page_size', params.limit.toString());
+    if (params?.offset) {
+      const page = Math.floor(params.offset / (params.limit || 20)) + 1;
+      queryParams.append('page', page.toString());
     }
 
-    const query = searchParams.toString() ? `?${searchParams}` : '';
-    return this.request<PaginatedResponse<BestPracticeListItem>>(`/best-practices${query}`);
+    const response = await this.request<{
+      items: any[];
+      total: number;
+      page: number;
+      page_size: number;
+      total_pages: number;
+    }>(`/best-practices?${queryParams.toString()}`);
+
+    return {
+      success: true,
+      data: response.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        plant: item.plant,
+        status: item.status,
+        is_benchmarked: item.is_benchmarked || false,
+        submitted_date: item.submitted_date,
+        created_at: item.created_at,
+      })),
+      pagination: {
+        total: response.total,
+        limit: response.page_size,
+        offset: (response.page - 1) * response.page_size,
+        has_more: response.page < response.total_pages,
+      },
+    };
   }
 
   /**
    * Get single best practice with full details
    */
   async getBestPractice(practiceId: string): Promise<BestPractice> {
-    return this.request<BestPractice>(`/best-practices/${practiceId}`);
+    const data = await this.request<any>(`/best-practices/${practiceId}`);
+    
+    // Transform backend response to match frontend type
+    return {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      category_id: data.category_id,
+      category: data.category,
+      submitted_by_user_id: data.submitted_by_user_id,
+      submitted_by: data.submitted_by,
+      plant_id: data.plant_id,
+      plant: data.plant,
+      problem_statement: data.problem_statement,
+      solution: data.solution,
+      benefits: data.benefits,
+      metrics: data.metrics,
+      implementation: data.implementation,
+      investment: data.investment,
+      savings_amount: data.savings_amount,
+      savings_currency: data.savings_currency,
+      savings_period: data.savings_period,
+      area_implemented: data.area_implemented,
+      status: data.status,
+      submitted_date: data.submitted_date,
+      is_benchmarked: data.is_benchmarked || false,
+      benchmarked_date: data.benchmarked_date,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
   }
 
   /**
    * Create new best practice
    */
   async createBestPractice(data: BestPracticeCreate): Promise<BestPractice> {
-    return this.request<BestPractice>('/best-practices', {
+    const response = await this.request<any>('/best-practices', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
+    // Fetch full details
+    return this.getBestPractice(response.id);
   }
 
   /**
    * Update best practice
    */
   async updateBestPractice(practiceId: string, data: Partial<BestPracticeCreate>): Promise<BestPractice> {
-    return this.request<BestPractice>(`/best-practices/${practiceId}`, {
+    await this.request(`/best-practices/${practiceId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    
+    // Fetch updated practice
+    return this.getBestPractice(practiceId);
   }
 
   /**
@@ -314,17 +406,41 @@ class APIService {
   }
 
   /**
-   * Get my plant's practices
+   * Get my plant's practices (MOCK)
    */
   async getMyPractices(): Promise<BestPracticeListItem[]> {
-    return this.request<BestPracticeListItem[]>('/best-practices/my-practices');
+    const data = await this.request<any[]>('/best-practices/my-practices');
+    return data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      plant: item.plant,
+      status: item.status,
+      is_benchmarked: item.is_benchmarked || false,
+      submitted_date: item.submitted_date,
+      created_at: item.created_at,
+    }));
   }
 
   /**
    * Get recent best practices
    */
   async getRecentPractices(limit: number = 10): Promise<BestPracticeListItem[]> {
-    return this.request<BestPracticeListItem[]>(`/best-practices/recent?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    const data = await this.request<any[]>(`/best-practices/recent?${params.toString()}`);
+    return data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      plant: item.plant,
+      status: item.status,
+      is_benchmarked: item.is_benchmarked || false,
+      submitted_date: item.submitted_date,
+      created_at: item.created_at,
+    }));
   }
 
   // ============= Benchmarking =============
@@ -332,7 +448,7 @@ class APIService {
   /**
    * Benchmark a practice (HQ only)
    */
-  async benchmarkPractice(practiceId: string): Promise<any> {
+  async benchmarkPractice(practiceId: string): Promise<{ id: string; practice_id: string; benchmarked_by_user_id: string; benchmarked_date: string; created_at: string }> {
     return this.request(`/benchmarking/benchmark/${practiceId}`, {
       method: 'POST',
     });
@@ -348,7 +464,7 @@ class APIService {
   }
 
   /**
-   * List all benchmarked practices
+   * List all benchmarked practices (MOCK)
    */
   async listBenchmarkedPractices(params?: {
     plant_id?: string;
@@ -356,47 +472,83 @@ class APIService {
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
-    const searchParams = new URLSearchParams();
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          searchParams.append(key, value.toString());
-        }
-      });
+    const queryParams = new URLSearchParams();
+    if (params?.plant_id) queryParams.append('plant_id', params.plant_id);
+    if (params?.category_id) queryParams.append('category_id', params.category_id);
+    if (params?.limit) queryParams.append('page_size', params.limit.toString());
+    if (params?.offset) {
+      const page = Math.floor(params.offset / (params.limit || 20)) + 1;
+      queryParams.append('page', page.toString());
     }
 
-    const query = searchParams.toString() ? `?${searchParams}` : '';
-    return this.request<any[]>(`/benchmarking/list${query}`);
+    const response = await this.request<{
+      items: any[];
+      total: number;
+    }>(`/benchmarking/list?${queryParams.toString()}`);
+
+    return response.items.map((item) => ({
+      id: item.id,
+      practice_id: item.id,
+      practice_title: item.title,
+      practice_category: item.category?.name || '',
+      plant_name: item.plant?.name || item.plant_name,
+      benchmarked_date: item.benchmarked_date,
+      copy_count: 0,
+    }));
   }
 
   /**
    * Get recent benchmarked practices
    */
   async getRecentBenchmarkedPractices(limit: number = 10): Promise<any[]> {
-    return this.request<any[]>(`/benchmarking/recent?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    const data = await this.request<any[]>(`/benchmarking/recent?${params.toString()}`);
+    return data.map((item) => ({
+      id: item.id,
+      practice_id: item.id,
+      practice_title: item.title,
+      practice_category: item.category?.name || '',
+      plant_name: item.plant_name,
+      benchmarked_date: item.benchmarked_date,
+      copy_count: 0, // Would need separate query
+    }));
   }
 
   /**
    * Get plants that copied a practice
    */
-  async getPracticeCopies(practiceId: string): Promise<any[]> {
-    return this.request<any[]>(`/benchmarking/${practiceId}/copies`);
+  async getPracticeCopies(practiceId: string): Promise<CopyDetail[]> {
+    const data = await this.request<any[]>(`/benchmarking/copies/${practiceId}`);
+    return data.map((item) => ({
+      id: item.id,
+      copied_practice_id: item.copied_practice_id,
+      copying_plant: item.copying_plant,
+      copied_date: item.copied_date,
+      implementation_status: item.implementation_status,
+    }));
   }
 
   /**
    * Get total benchmarked count
    */
   async getTotalBenchmarkedCount(): Promise<{ total_benchmarked: number }> {
-    const result = await this.request<APIResponse<{ total_benchmarked: number }>>('/benchmarking/total-count');
-    return result.data;
+    return this.request<{ total_benchmarked: number }>('/benchmarking/total-count');
   }
 
   /**
    * Get copy spread (horizontal deployment status)
    */
   async getCopySpread(limit: number = 50): Promise<CopySpreadItem[]> {
-    return this.request<CopySpreadItem[]>(`/benchmarking/copy-spread?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    const data = await this.request<any[]>(`/benchmarking/copy-spread?${params.toString()}`);
+    return data.map((item) => ({
+      bp_id: '', // Backend doesn't return this
+      bp: item.bp,
+      origin: item.origin,
+      copies: item.copies || [],
+    }));
   }
 
   // ============= Copy & Implement =============
@@ -405,24 +557,79 @@ class APIService {
    * Copy and implement a benchmarked practice
    */
   async copyAndImplement(data: CopyImplementRequest): Promise<CopyImplementResponse> {
-    return this.request<CopyImplementResponse>('/copy/implement', {
+    const response = await this.request<any>('/copy-implement/copy', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        original_practice_id: data.original_practice_id,
+        title: data.customized_title,
+        description: data.customized_description,
+        problem_statement: data.customized_problem_statement,
+        solution: data.customized_solution,
+        implementation_status: data.implementation_status || 'planning',
+      }),
     });
+
+    return {
+      success: true,
+      data: {
+        copied_practice: {
+          id: response.id,
+          title: response.title,
+        },
+        copy_record: {
+          id: response.id,
+          original_practice_id: data.original_practice_id,
+          copied_practice_id: response.id,
+          copying_plant_id: response.copying_plant.id,
+          copied_date: response.copied_date,
+          implementation_status: response.implementation_status,
+        },
+        points_awarded: {
+          origin_points: 10,
+          copier_points: 5,
+          origin_plant_id: '',
+          copying_plant_id: response.copying_plant.id,
+        },
+      },
+      message: 'Practice copied successfully',
+    };
   }
 
   /**
    * Get my implementations (copied practices)
    */
-  async getMyImplementations(): Promise<any[]> {
-    return this.request<any[]>('/copy/my-implementations');
+  async getMyImplementations(): Promise<BestPracticeListItem[]> {
+    const data = await this.request<any[]>('/copy-implement/my-implementations');
+    return data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      plant: item.plant,
+      status: item.status,
+      is_benchmarked: false,
+      submitted_date: item.copied_date,
+      created_at: item.copied_date,
+    }));
   }
 
   /**
    * Get deployment status
    */
   async getDeploymentStatus(limit: number = 50): Promise<APIResponse<CopySpreadItem[]>> {
-    return this.request<APIResponse<CopySpreadItem[]>>(`/copy/deployment-status?limit=${limit}`);
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    const data = await this.request<any[]>(`/copy-implement/deployment-status?${params.toString()}`);
+    
+    return {
+      success: true,
+      data: data.data.map((item) => ({
+        bp_id: '',
+        bp: item.bp,
+        origin: item.origin,
+        copies: item.copies || [],
+      })),
+    };
   }
 
   // ============= Questions =============
@@ -431,37 +638,65 @@ class APIService {
    * Get questions for a practice
    */
   async getPracticeQuestions(practiceId: string): Promise<Question[]> {
-    return this.request<Question[]>(`/questions/practice/${practiceId}`);
+    const data = await this.request<any[]>(`/questions/practice/${practiceId}`);
+    return data.map((item) => ({
+      id: item.id,
+      practice_id: item.practice_id,
+      asked_by_user_id: item.asked_by.id,
+      asked_by_name: item.asked_by.full_name,
+      question_text: item.question_text,
+      answer_text: item.answer_text,
+      answered_by_user_id: item.answered_by?.id,
+      answered_by_name: item.answered_by?.full_name,
+      answered_at: item.answered_at,
+      created_at: item.created_at,
+    }));
   }
 
   /**
    * Ask a question
    */
   async askQuestion(practiceId: string, questionText: string): Promise<Question> {
-    return this.request<Question>(`/questions/practice/${practiceId}`, {
+    const data = await this.request<any>(`/questions/practice/${practiceId}`, {
       method: 'POST',
       body: JSON.stringify({ question_text: questionText }),
     });
+    
+    return {
+      id: data.id,
+      practice_id: data.practice_id,
+      asked_by_user_id: data.asked_by.id,
+      asked_by_name: data.asked_by.full_name,
+      question_text: data.question_text,
+      answer_text: data.answer_text,
+      answered_by_user_id: data.answered_by?.id,
+      answered_by_name: data.answered_by?.full_name,
+      answered_at: data.answered_at,
+      created_at: data.created_at,
+    };
   }
 
   /**
    * Answer a question
    */
   async answerQuestion(questionId: string, answerText: string): Promise<Question> {
-    const endpoint = `/questions/${questionId}/answer`;
-    console.log('Answering question:', { questionId, endpoint, method: 'PATCH' });
+    const data = await this.request<any>(`/questions/answer/${questionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ answer_text: answerText }),
+    });
     
-    try {
-      const result = await this.request<Question>(endpoint, {
-        method: 'PATCH',
-        body: JSON.stringify({ answer_text: answerText }),
-      });
-      console.log('Answer question success:', result);
-      return result;
-    } catch (error) {
-      console.error('Answer question error:', error);
-      throw error;
-    }
+    return {
+      id: data.id,
+      practice_id: data.practice_id,
+      asked_by_user_id: data.asked_by.id,
+      asked_by_name: data.asked_by.full_name,
+      question_text: data.question_text,
+      answer_text: data.answer_text,
+      answered_by_user_id: data.answered_by.id,
+      answered_by_name: data.answered_by.full_name,
+      answered_at: data.answered_at,
+      created_at: data.created_at,
+    };
   }
 
   /**
@@ -476,29 +711,54 @@ class APIService {
   // ============= Leaderboard =============
 
   /**
-   * Get current year leaderboard
+   * Get current year leaderboard (MOCK)
    */
   async getLeaderboard(year?: number): Promise<LeaderboardEntry[]> {
-    const query = year ? `?year=${year}` : '';
-    return this.request<LeaderboardEntry[]>(`/leaderboard/current${query}`);
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    const query = params.toString();
+    const data = await this.request<any[]>(`/leaderboard${query ? '?' + query : ''}`);
+    return data.map((item) => ({
+      rank: item.rank,
+      plant: typeof item.plant === 'string' ? item.plant : item.plant.name,
+      total_points: item.total_points,
+      origin_points: item.origin_points || 0,
+      copier_points: item.copier_points || 0,
+    }));
   }
 
   /**
-   * Get plant leaderboard breakdown
+   * Get plant leaderboard breakdown (MOCK)
    */
   async getPlantBreakdown(plantId: string, year?: number): Promise<PlantLeaderboardBreakdown> {
-    const query = year ? `?year=${year}` : '';
-    return this.request<PlantLeaderboardBreakdown>(`/leaderboard/${plantId}/breakdown${query}`);
+    await delay(150);
+    // Return mock breakdown for plant-001, or create one for other plants
+    if (plantId === 'plant-001') {
+      return mockPlantBreakdown;
+    }
+    // Create a simple breakdown for other plants
+    const plant = mockPlants.find(p => p.id === plantId);
+    return {
+      plant_id: plantId,
+      plant_name: plant?.name || 'Unknown',
+      copied: [],
+      copiedCount: 0,
+      copiedPoints: 0,
+      originated: [],
+      originatedCount: 0,
+      originatedPoints: 0,
+    };
   }
 
   /**
-   * Recalculate leaderboard (HQ only)
+   * Recalculate leaderboard (HQ only) (MOCK)
    */
-  async recalculateLeaderboard(year?: number): Promise<APIResponse<any>> {
-    const query = year ? `?year=${year}` : '';
-    return this.request<APIResponse<any>>(`/leaderboard/recalculate${query}`, {
-      method: 'POST',
-    });
+  async recalculateLeaderboard(year?: number): Promise<APIResponse<{ message: string }>> {
+    await delay(300);
+    return {
+      success: true,
+      data: { message: 'Leaderboard recalculated successfully' },
+    };
   }
 
   // ============= Analytics =============
@@ -507,7 +767,112 @@ class APIService {
    * Get dashboard overview
    */
   async getDashboardOverview(currency: CurrencyFormat = 'lakhs'): Promise<DashboardOverview> {
-    return this.request<DashboardOverview>(`/analytics/overview?currency=${currency}`);
+    const data = await this.request<any>('/analytics/dashboard/overview', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Transform backend response to match frontend type
+    return {
+      monthly_count: data.this_month_practices || 0,
+      ytd_count: data.ytd_practices || 0,
+      monthly_savings: data.this_month_savings || '0',
+      ytd_savings: data.total_savings || '0',
+      stars: data.stars || 0,
+      benchmarked_count: data.benchmarked_count || 0,
+      currency: currency,
+    };
+  }
+
+  /**
+   * Get unified dashboard data (all data in one call)
+   */
+  async getUnifiedDashboard(plantId?: string, currency: 'lakhs' | 'crores' = 'lakhs'): Promise<any> {
+    const params = new URLSearchParams();
+    if (plantId) params.append('plant_id', plantId);
+    params.append('currency', currency);
+    
+    const response = await this.request<{
+      success: boolean;
+      data: {
+        overview: any;
+        leaderboard: any[];
+        copy_spread: any[];
+        category_breakdown: any[];
+        recent_benchmarked: any[];
+        star_ratings?: any[];
+        plant_performance?: any[];
+        benchmark_stats?: any;
+        recent_practices?: any[];
+        my_practices?: any[];
+        monthly_trend?: any[];
+      };
+    }>(`/analytics/dashboard/unified?${params.toString()}`, {
+      method: 'GET',
+    });
+
+    // Transform backend response to match frontend type
+    const { data } = response;
+    
+    return {
+      success: true,
+      data: {
+        overview: {
+          monthly_count: data.overview.this_month_practices || 0,
+          ytd_count: data.overview.ytd_practices || 0,
+          monthly_savings: data.overview.this_month_savings || '0',
+          ytd_savings: data.overview.total_savings || '0',
+          stars: data.overview.stars || 0,
+          benchmarked_count: data.overview.benchmarked_count || 0,
+          currency: currency as CurrencyFormat,
+        },
+        leaderboard: data.leaderboard || [],
+        copy_spread: data.copy_spread || [],
+        category_breakdown: (() => {
+          const breakdown = data.category_breakdown || [];
+          console.log('Raw category breakdown from backend:', breakdown);
+          console.log('Breakdown type:', typeof breakdown, 'Is array:', Array.isArray(breakdown));
+          
+          if (!Array.isArray(breakdown)) {
+            console.error('Category breakdown is not an array!', breakdown);
+            return [];
+          }
+          
+          const mapped = breakdown
+            .filter((cat: any) => {
+              const hasCategory = cat && (cat.category || cat.category_name || cat.name);
+              if (!hasCategory) {
+                console.warn('Filtered out category with no name:', cat);
+              }
+              return hasCategory;
+            })
+            .map((cat: any) => {
+              const mappedCat = {
+                category_id: cat.category_id || cat.id || '',
+                category_name: cat.category || cat.category_name || cat.name || 'Unknown',
+                category_slug: cat.category_slug || cat.slug || '',
+                practice_count: cat.count || cat.practice_count || 0,
+                color_class: cat.color_class || cat.colorClass || '',
+                icon_name: cat.icon_name || cat.iconName || '',
+              };
+              console.log('Mapped category:', mappedCat);
+              return mappedCat;
+            });
+          console.log('Final category breakdown:', mapped);
+          console.log('Final category breakdown length:', mapped.length);
+          return mapped;
+        })(),
+        recent_benchmarked: data.recent_benchmarked || [],
+        star_ratings: data.star_ratings || [],
+        plant_performance: data.plant_performance || [],
+        benchmark_stats: data.benchmark_stats || null,
+        recent_practices: data.recent_practices || [],
+        my_practices: data.my_practices || [],
+        monthly_trend: data.monthly_trend || [],
+      },
+    };
   }
 
   /**
@@ -518,10 +883,19 @@ class APIService {
     year?: number,
     month?: number
   ): Promise<PlantPerformance[]> {
-    const params = new URLSearchParams({ period });
+    const params = new URLSearchParams();
+    params.append('period', period);
     if (year) params.append('year', year.toString());
     if (month) params.append('month', month.toString());
-    return this.request<PlantPerformance[]>(`/analytics/plant-performance?${params}`);
+
+    const data = await this.request<any[]>('/analytics/plant-performance?' + params.toString());
+    
+    return data.map((item) => ({
+      plant_id: item.plant.id,
+      plant_name: item.plant.name,
+      short_name: item.plant.short_name,
+      submitted: item.practice_count || 0,
+    }));
   }
 
   /**
@@ -531,8 +905,19 @@ class APIService {
     const params = new URLSearchParams();
     if (plantId) params.append('plant_id', plantId);
     if (year) params.append('year', year.toString());
-    const query = params.toString() ? `?${params}` : '';
-    return this.request<CategoryBreakdown[]>(`/analytics/category-breakdown${query}`);
+
+    const data = await this.request<any[]>('/analytics/category-breakdown?' + params.toString());
+    
+    return data
+      .filter((item) => item.category) // Filter out items with null/undefined category
+      .map((item) => ({
+        category_id: '', // Backend doesn't return this, would need to fetch categories separately
+        category_name: item.category || 'Unknown',
+        category_slug: '',
+        practice_count: item.practice_count || item.count || 0,
+        color_class: '',
+        icon_name: '',
+      }));
   }
 
   /**
@@ -544,17 +929,23 @@ class APIService {
     year?: number,
     month?: number
   ): Promise<APIResponse<PlantSavings[]>> {
-    const params = new URLSearchParams({ period, currency });
+    const params = new URLSearchParams();
+    params.append('period', period);
+    params.append('currency', currency);
     if (year) params.append('year', year.toString());
     if (month) params.append('month', month.toString());
-    return this.request<APIResponse<PlantSavings[]>>(`/analytics/cost-savings?${params}`);
+
+    return this.request<APIResponse<PlantSavings[]>>('/analytics/cost-savings?' + params.toString());
   }
 
   /**
    * Get cost analysis
    */
   async getCostAnalysis(currency: CurrencyFormat = 'lakhs'): Promise<APIResponse<PlantSavings[]>> {
-    return this.request<APIResponse<PlantSavings[]>>(`/analytics/cost-analysis?currency=${currency}`);
+    const params = new URLSearchParams();
+    params.append('currency', currency);
+
+    return this.request<APIResponse<PlantSavings[]>>('/analytics/cost-analysis?' + params.toString());
   }
 
   /**
@@ -565,18 +956,24 @@ class APIService {
     year?: number,
     currency: CurrencyFormat = 'lakhs'
   ): Promise<MonthlySavingsBreakdown[]> {
-    const params = new URLSearchParams({ currency });
+    const params = new URLSearchParams();
+    params.append('currency', currency);
     if (year) params.append('year', year.toString());
-    return this.request<MonthlySavingsBreakdown[]>(`/analytics/cost-analysis/${plantId}/monthly?${params}`);
+
+    return this.request<MonthlySavingsBreakdown[]>(
+      `/analytics/plant-monthly-breakdown/${plantId}?${params.toString()}`
+    );
   }
 
   /**
    * Get star ratings
    */
   async getStarRatings(currency: CurrencyFormat = 'lakhs', year?: number): Promise<StarRating[]> {
-    const params = new URLSearchParams({ currency });
+    const params = new URLSearchParams();
+    params.append('currency', currency);
     if (year) params.append('year', year.toString());
-    return this.request<StarRating[]>(`/analytics/star-ratings?${params}`);
+
+    return this.request<StarRating[]>('/analytics/star-ratings?' + params.toString());
   }
 
   /**
@@ -587,9 +984,13 @@ class APIService {
     year?: number,
     currency: CurrencyFormat = 'lakhs'
   ): Promise<MonthlyTrend[]> {
-    const params = new URLSearchParams({ currency });
+    const params = new URLSearchParams();
+    params.append('currency', currency);
     if (year) params.append('year', year.toString());
-    return this.request<MonthlyTrend[]>(`/analytics/star-ratings/${plantId}/monthly-trend?${params}`);
+
+    return this.request<MonthlyTrend[]>(
+      `/analytics/plant-monthly-trend/${plantId}?${params.toString()}`
+    );
   }
 
   /**
@@ -599,17 +1000,17 @@ class APIService {
     const params = new URLSearchParams();
     if (year) params.append('year', year.toString());
     if (month) params.append('month', month.toString());
-    const query = params.toString() ? `?${params}` : '';
-    return this.request<BenchmarkStats[]>(`/analytics/benchmark-stats${query}`);
+
+    return this.request<BenchmarkStats[]>('/analytics/benchmark-stats?' + params.toString());
   }
 
   /**
    * Recalculate monthly savings (HQ only)
    */
-  async recalculateSavings(year?: number): Promise<APIResponse<any>> {
-    const query = year ? `?year=${year}` : '';
-    return this.request<APIResponse<any>>(`/analytics/recalculate-savings${query}`, {
+  async recalculateSavings(year?: number): Promise<APIResponse<{ message: string }>> {
+    return this.request<APIResponse<{ message: string }>>('/analytics/recalculate-savings', {
       method: 'POST',
+      body: JSON.stringify({ year }),
     });
   }
 
@@ -619,106 +1020,39 @@ class APIService {
    * Request presigned URL for file upload
    */
   async requestPresignedUrl(data: PresignedUrlRequest): Promise<PresignedUrlResponse> {
-    return this.request<PresignedUrlResponse>('/best-practices/upload/presigned-url', {
+    const response = await this.request<{
+      presigned_url: string;
+      blob_name: string;
+      expires_in: number;
+    }>('/uploads/presigned-url', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        file_name: data.filename,
+        content_type: data.content_type,
+        file_type: data.file_type,
+      }),
     });
-  }
 
-  /**
-   * Sanitize and validate presigned URL
-   * Fixes malformed URLs from backend that may contain "defaultendpointsprotocol=https//" prefix
-   */
-  private sanitizePresignedUrl(url: string): string {
-    if (!url || typeof url !== 'string') {
-      throw new Error(`Invalid presigned URL: ${url}`);
-    }
-
-    let sanitized = url.trim();
-    
-    // Remove malformed prefix patterns
-    // Pattern 1: https://defaultendpointsprotocol=https//...
-    sanitized = sanitized.replace(/^https:\/\/defaultendpointsprotocol=https\/\//i, 'https://');
-    
-    // Pattern 2: defaultendpointsprotocol=https//... (missing https://)
-    sanitized = sanitized.replace(/^defaultendpointsprotocol=https\/\//i, 'https://');
-    
-    // Pattern 3: Extract actual URL if embedded in malformed string
-    const urlMatch = sanitized.match(/https?:\/\/[^\s"']+/i);
-    if (urlMatch && !sanitized.startsWith('http://') && !sanitized.startsWith('https://')) {
-      sanitized = urlMatch[0];
-    }
-    
-    // Ensure URL starts with https:// or http://
-    if (!sanitized.match(/^https?:\/\//i)) {
-      // Try to find and extract a valid URL pattern
-      const extractedUrl = sanitized.match(/(https?:\/\/[^\s"']+)/i);
-      if (extractedUrl) {
-        sanitized = extractedUrl[1];
-      } else {
-        // If no valid URL found, log and throw error
-        console.error('Malformed presigned URL received:', url);
-        throw new Error(`Invalid presigned URL format received from backend. Please check backend Azure Storage configuration. Original: ${url.substring(0, 100)}...`);
-      }
-    }
-    
-    // Validate URL format
-    try {
-      new URL(sanitized);
-    } catch (e) {
-      console.error('Invalid URL format after sanitization:', sanitized);
-      throw new Error(`Invalid presigned URL format: ${sanitized.substring(0, 100)}...`);
-    }
-    
-    return sanitized;
+    return {
+      upload_url: response.presigned_url,
+      blob_name: response.blob_name,
+      container: data.file_type === 'image' ? 'best-practices' : 'supporting-documents',
+      expiry: new Date(Date.now() + response.expires_in * 1000).toISOString(),
+    };
   }
 
   /**
    * Upload file to Azure Blob Storage
    */
   async uploadToAzure(presignedUrl: string, file: File): Promise<void> {
-    // Sanitize the URL to fix malformed URLs from backend
-    const sanitizedUrl = this.sanitizePresignedUrl(presignedUrl);
-    
-    console.log('Original URL:', presignedUrl.substring(0, 150));
-    console.log('Sanitized URL:', sanitizedUrl.substring(0, 150));
-    
-    try {
-      const response = await fetch(sanitizedUrl, {
-        method: 'PUT',
-        headers: {
-          'x-ms-blob-type': 'BlockBlob',
-          'Content-Type': file.type,
-        },
-        body: file,
-        mode: 'cors', // Explicitly set CORS mode
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        const errorMessage = `Failed to upload file to Azure: ${response.status} ${response.statusText}`;
-        console.error('Azure upload error:', errorMessage, errorText);
-        throw new Error(`${errorMessage}. ${errorText.substring(0, 200)}`);
-      }
-    } catch (error: any) {
-      // Provide more detailed error information
-      if (error.message?.includes('CORS') || error.message?.includes('NetworkError') || error.name === 'TypeError') {
-        const detailedError = `CORS/Network error: Unable to upload file to Azure Blob Storage. ` +
-          `This may be due to: (1) Azure Storage CORS not configured for ${window.location.origin}, ` +
-          `(2) Malformed presigned URL from backend, or (3) Network connectivity issues. ` +
-          `Please check Azure Storage CORS settings and backend connection string configuration.`;
-        console.error('Upload error details:', {
-          originalUrl: presignedUrl.substring(0, 150),
-          sanitizedUrl: sanitizedUrl.substring(0, 150),
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          error: error.message
-        });
-        throw new Error(detailedError);
-      }
-      throw error;
-    }
+    await fetch(presignedUrl, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+        'x-ms-blob-type': 'BlockBlob',
+      },
+    });
   }
 
   /**
@@ -733,9 +1067,14 @@ class APIService {
     file_size: number;
     content_type: string;
   }): Promise<PracticeImage> {
-    return this.request<PracticeImage>(`/best-practices/${practiceId}/images`, {
+    return this.request<PracticeImage>(`/uploads/confirm-image/${practiceId}`, {
       method: 'POST',
-      body: JSON.stringify(imageData),
+      body: JSON.stringify({
+        image_type: imageData.image_type,
+        blob_name: imageData.blob_name,
+        file_size: imageData.file_size,
+        content_type: imageData.content_type,
+      }),
     });
   }
 
@@ -751,9 +1090,14 @@ class APIService {
     file_size: number;
     content_type: string;
   }): Promise<PracticeDocument> {
-    return this.request<PracticeDocument>(`/best-practices/${practiceId}/documents`, {
+    return this.request<PracticeDocument>(`/uploads/confirm-document/${practiceId}`, {
       method: 'POST',
-      body: JSON.stringify(documentData),
+      body: JSON.stringify({
+        document_name: documentData.document_name,
+        blob_name: documentData.blob_name,
+        file_size: documentData.file_size,
+        content_type: documentData.content_type,
+      }),
     });
   }
 
@@ -773,15 +1117,12 @@ class APIService {
       file_size: file.size,
     });
 
-    // Sanitize the upload URL
-    const sanitizedUploadUrl = this.sanitizePresignedUrl(urlData.upload_url);
-
     // Step 2: Upload to Azure
-    await this.uploadToAzure(sanitizedUploadUrl, file);
+    await this.uploadToAzure(urlData.upload_url, file);
 
     // Step 3: Confirm upload
-    // Use sanitized URL for blob_url (remove SAS token)
-    const blob_url = sanitizedUploadUrl.split('?')[0];
+    // Use URL for blob_url (remove SAS token)
+    const blob_url = urlData.upload_url.split('?')[0];
     return this.confirmDocumentUpload(practiceId, {
       practice_id: practiceId,
       document_name: file.name,
@@ -794,23 +1135,23 @@ class APIService {
   }
 
   /**
-   * List practice images
+   * List practice images (MOCK)
    */
   async getPracticeImages(practiceId: string): Promise<PracticeImage[]> {
-    return this.request<PracticeImage[]>(`/best-practices/${practiceId}/images`);
+    return this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
   }
 
   /**
    * Delete practice image
    */
   async deletePracticeImage(practiceId: string, imageId: string): Promise<{ success: boolean; message: string }> {
-    return this.request(`/best-practices/${practiceId}/images/${imageId}`, {
+    return this.request(`/uploads/images/${imageId}`, {
       method: 'DELETE',
     });
   }
 
   /**
-   * Complete file upload flow (request URL, upload, confirm)
+   * Complete file upload flow (request URL, upload, confirm) (MOCK)
    */
   async uploadPracticeImage(
     practiceId: string,
@@ -827,15 +1168,11 @@ class APIService {
       file_size: file.size,
     });
 
-    // Sanitize the upload URL
-    const sanitizedUploadUrl = this.sanitizePresignedUrl(urlData.upload_url);
-
-    // Step 2: Upload to Azure
-    await this.uploadToAzure(sanitizedUploadUrl, file);
+    // Step 2: Upload to Azure (mock)
+    await this.uploadToAzure(urlData.upload_url, file);
 
     // Step 3: Confirm upload
-    // Use sanitized URL for blob_url (remove SAS token)
-    const blob_url = sanitizedUploadUrl.split('?')[0];
+    const blob_url = urlData.upload_url.split('?')[0];
     return this.confirmImageUpload(practiceId, {
       practice_id: practiceId,
       image_type: imageType,
@@ -848,45 +1185,71 @@ class APIService {
   }
 
   /**
-   * Get user's notifications
+   * Get user's notifications (MOCK)
    */
   async getNotifications(params?: {
     limit?: number;
     offset?: number;
     is_read?: boolean;
   }): Promise<NotificationListResponse> {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.offset) queryParams.append('offset', params.offset.toString());
-    if (params?.is_read !== undefined) queryParams.append('is_read', params.is_read.toString());
+    await delay(100);
+    let filtered = [...mockNotifications];
     
-    const query = queryParams.toString();
-    return this.request<NotificationListResponse>(`/notifications${query ? `?${query}` : ''}`);
+    if (params?.is_read !== undefined) {
+      filtered = filtered.filter(n => n.is_read === params.is_read);
+    }
+    
+    const offset = params?.offset || 0;
+    const limit = params?.limit || 20;
+    const total = filtered.length;
+    const paginated = filtered.slice(offset, offset + limit);
+    
+    return {
+      success: true,
+      data: paginated,
+      pagination: {
+        total,
+        limit,
+        offset,
+        has_more: offset + limit < total,
+      },
+    };
   }
 
   /**
-   * Get unread notification count
+   * Get unread notification count (MOCK)
    */
   async getUnreadNotificationCount(): Promise<UnreadCountResponse> {
-    return this.request<UnreadCountResponse>('/notifications/unread-count');
+    await delay(100);
+    return {
+      unread_count: mockNotifications.filter(n => !n.is_read).length,
+    };
   }
 
   /**
-   * Mark notification as read
+   * Mark notification as read (MOCK)
    */
   async markNotificationAsRead(notificationId: string): Promise<Notification> {
-    return this.request<Notification>(`/notifications/${notificationId}/read`, {
-      method: 'PATCH',
-    });
+    await delay(150);
+    const notification = mockNotifications.find(n => n.id === notificationId);
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+    notification.is_read = true;
+    notification.updated_at = new Date().toISOString();
+    return notification;
   }
 
   /**
-   * Mark all notifications as read
+   * Mark all notifications as read (MOCK)
    */
   async markAllNotificationsAsRead(): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>('/notifications/read-all', {
-      method: 'PATCH',
+    await delay(200);
+    mockNotifications.forEach(n => {
+      n.is_read = true;
+      n.updated_at = new Date().toISOString();
     });
+    return { success: true, message: 'All notifications marked as read' };
   }
 }
 

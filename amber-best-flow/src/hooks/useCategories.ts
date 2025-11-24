@@ -10,7 +10,7 @@ export const useCategories = () => {
   return useQuery<CategoryWithCount[]>({
     queryKey: ['categories'],
     queryFn: () => apiService.listCategories(),
-    staleTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 60 * 60 * 1000, // 60 minutes
   });
 };
 

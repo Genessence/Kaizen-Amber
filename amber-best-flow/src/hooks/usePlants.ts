@@ -10,7 +10,7 @@ export const usePlants = (isActive?: boolean) => {
   return useQuery<Plant[]>({
     queryKey: ['plants', isActive],
     queryFn: () => apiService.listPlants(isActive),
-    staleTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 60 * 60 * 1000, // 60 minutes
   });
 };
 
@@ -18,7 +18,7 @@ export const useActivePlants = () => {
   return useQuery<Plant[]>({
     queryKey: ['plants', 'active'],
     queryFn: () => apiService.getActivePlants(),
-    staleTime: 30 * 60 * 1000,
+    staleTime: 60 * 60 * 1000, // 60 minutes
   });
 };
 

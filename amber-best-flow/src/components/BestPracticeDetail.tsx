@@ -60,6 +60,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   // State for question/answer inputs
   const [newQuestionText, setNewQuestionText] = useState("");
   const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
+  const [isBenchmarkProcessing, setIsBenchmarkProcessing] = useState(false);
   
   // Use benchmark mutations
   const benchmarkMutation = useBenchmarkPractice();
@@ -70,6 +71,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     if (!practice?.id) return;
 
     try {
+      setIsBenchmarkProcessing(true);
       if (practice.is_benchmarked) {
         await unbenchmarkMutation.mutateAsync(practice.id);
       } else {
@@ -80,6 +82,8 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     } catch (error) {
       // Error handled by mutation hook
       console.error('Benchmark toggle failed:', error);
+    } finally {
+      setIsBenchmarkProcessing(false);
     }
   };
 
@@ -213,9 +217,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
               size="sm" 
               variant={practice.is_benchmarked ? "outline" : "default"}
               onClick={handleBenchmarkToggle}
-              disabled={benchmarkMutation.isPending || unbenchmarkMutation.isPending}
+              disabled={isBenchmarkProcessing}
             >
-              {benchmarkMutation.isPending || unbenchmarkMutation.isPending ? (
+              {isBenchmarkProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   {practice.is_benchmarked ? "Unbenchmarking..." : "Benchmarking..."}

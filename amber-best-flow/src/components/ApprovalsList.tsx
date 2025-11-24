@@ -12,6 +12,7 @@ import {
   FileText,
   Loader2
 } from "lucide-react";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import { useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { useBenchmarkedPractices } from "@/hooks/useBenchmarking";
@@ -27,6 +28,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
+  const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
   // Fetch ONLY benchmarked practices from API
   const { data: benchmarkedList, isLoading: practicesLoading } = useBenchmarkedPractices({
@@ -133,12 +135,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
         </CardHeader>
         <CardContent>
           {practicesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading practices...</p>
-              </div>
-            </div>
+            <ListSkeleton items={5} />
           ) : filteredPractices.length === 0 ? (
             <div className="text-center py-12">
               <FileCheck2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
@@ -215,6 +212,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
                         e.stopPropagation();
                         e.preventDefault();
                         try {
+                          setProcessingPracticeId(practice.id);
                           const isCurrentlyBenchmarked = practice.is_benchmarked || isBenchmarked?.(practice.id);
                           if (isCurrentlyBenchmarked) {
                             await unbenchmarkMutation.mutateAsync(practice.id);
@@ -224,11 +222,13 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
                           onToggleBenchmark?.(practice);
                         } catch (error: any) {
                           console.error('Failed to toggle benchmark:', error);
+                        } finally {
+                          setProcessingPracticeId(null);
                         }
                       }}
-                      disabled={benchmarkMutation.isPending || unbenchmarkMutation.isPending}
+                      disabled={processingPracticeId === practice.id}
                     >
-                      {benchmarkMutation.isPending || unbenchmarkMutation.isPending ? (
+                      {processingPracticeId === practice.id ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                           {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmarking..." : "Benchmarking..."}

@@ -30,7 +30,8 @@ export const useBestPractices = (filters?: BestPracticeFilters) => {
   return useQuery<PaginatedResponse<BestPracticeListItem>>({
     queryKey: ['best-practices', filters],
     queryFn: () => apiService.listBestPractices(filters),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    keepPreviousData: true, // For filtering/pagination
   });
 };
 
@@ -47,7 +48,7 @@ export const useMyPractices = () => {
   return useQuery<BestPracticeListItem[]>({
     queryKey: ['my-practices'],
     queryFn: () => apiService.getMyPractices(),
-    staleTime: 1 * 60 * 1000, // 1 minute
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -55,7 +56,7 @@ export const useRecentPractices = (limit: number = 10) => {
   return useQuery<BestPracticeListItem[]>({
     queryKey: ['recent-practices', limit],
     queryFn: () => apiService.getRecentPractices(limit),
-    staleTime: 1 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

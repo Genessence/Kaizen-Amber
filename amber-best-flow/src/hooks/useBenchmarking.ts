@@ -16,7 +16,8 @@ export const useBenchmarkedPractices = (params?: {
   return useQuery({
     queryKey: ['benchmarked-practices', params],
     queryFn: () => apiService.listBenchmarkedPractices(params),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    keepPreviousData: true, // For filtering/pagination
   });
 };
 
@@ -24,7 +25,7 @@ export const useRecentBenchmarkedPractices = (limit: number = 10) => {
   return useQuery({
     queryKey: ['recent-benchmarked', limit],
     queryFn: () => apiService.getRecentBenchmarkedPractices(limit),
-    staleTime: 1 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

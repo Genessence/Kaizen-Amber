@@ -20,9 +20,9 @@ import type {
 
 export const useDashboardOverview = (currency: CurrencyFormat = 'lakhs') => {
   return useQuery<DashboardOverview>({
-    queryKey: ['analytics', 'overview', currency],
+    queryKey: ['dashboard-overview', currency],
     queryFn: () => apiService.getDashboardOverview(currency),
-    staleTime: 1 * 60 * 1000, // 1 minute
+    staleTime: 5 * 60 * 1000, // 5 minutes - balance between freshness and performance
   });
 };
 
@@ -34,13 +34,13 @@ export const usePlantPerformance = (
   return useQuery<PlantPerformance[]>({
     queryKey: ['analytics', 'plant-performance', period, year, month],
     queryFn: () => apiService.getPlantPerformance(period, year, month),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
 export const useCategoryBreakdown = (plantId?: string, year?: number) => {
   return useQuery<CategoryBreakdown[]>({
-    queryKey: ['analytics', 'category-breakdown', plantId, year],
+    queryKey: ['category-breakdown', plantId, year],
     queryFn: () => apiService.getCategoryBreakdown(plantId, year),
     staleTime: 5 * 60 * 1000,
   });
@@ -55,7 +55,7 @@ export const useCostSavings = (
   return useQuery<APIResponse<PlantSavings[]>>({
     queryKey: ['analytics', 'cost-savings', period, currency, year, month],
     queryFn: () => apiService.getCostSavings(period, currency, year, month),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -63,7 +63,7 @@ export const useCostAnalysis = (currency: CurrencyFormat = 'lakhs') => {
   return useQuery<APIResponse<PlantSavings[]>>({
     queryKey: ['analytics', 'cost-analysis', currency],
     queryFn: () => apiService.getCostAnalysis(currency),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -76,7 +76,7 @@ export const usePlantMonthlyBreakdown = (
     queryKey: ['analytics', 'plant-monthly', plantId, year, currency],
     queryFn: () => apiService.getPlantMonthlyBreakdown(plantId!, year, currency),
     enabled: !!plantId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -84,7 +84,7 @@ export const useStarRatings = (currency: CurrencyFormat = 'lakhs', year?: number
   return useQuery<StarRating[]>({
     queryKey: ['analytics', 'star-ratings', currency, year],
     queryFn: () => apiService.getStarRatings(currency, year),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -97,7 +97,7 @@ export const usePlantMonthlyTrend = (
     queryKey: ['analytics', 'monthly-trend', plantId, year, currency],
     queryFn: () => apiService.getPlantMonthlyTrend(plantId!, year, currency),
     enabled: !!plantId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -105,7 +105,7 @@ export const useBenchmarkStats = (year?: number, month?: number) => {
   return useQuery<BenchmarkStats[]>({
     queryKey: ['analytics', 'benchmark-stats', year, month],
     queryFn: () => apiService.getBenchmarkStats(year, month),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

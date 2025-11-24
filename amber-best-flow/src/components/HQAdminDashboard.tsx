@@ -37,6 +37,7 @@ import {
   Bot,
   Loader2
 } from "lucide-react";
+import { CardSkeleton, TableSkeleton, ListSkeleton, StatsCardSkeleton, ChartSkeleton } from "@/components/ui/skeletons";
 import {
   ChartContainer,
   ChartTooltip,
@@ -45,11 +46,11 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from "recharts";
-import { useDashboardOverview, usePlantPerformance, useBenchmarkStats, useCategoryBreakdown, useStarRatings, usePlantMonthlyTrend } from "@/hooks/useAnalytics";
-import { useLeaderboard } from "@/hooks/useLeaderboard";
-import { useCopySpread, useRecentBenchmarkedPractices } from "@/hooks/useBenchmarking";
+// Most analytics data now comes from useUnifiedDashboard hook
+// Only usePlantMonthlyTrend is kept for lazy loading when plant is selected
+import { usePlantMonthlyTrend } from "@/hooks/useAnalytics";
 import { usePlants } from "@/hooks/usePlants";
-import { useRecentPractices } from "@/hooks/useBestPractices";
+import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
 
 interface HQAdminDashboardProps {
   thisMonthTotal?: number;
@@ -60,13 +61,34 @@ interface HQAdminDashboardProps {
 
 const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }: HQAdminDashboardProps) => {
   const navigate = useNavigate();
-  // Fetch data from API
-  const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
-  const { data: leaderboardData, isLoading: leaderboardLoading } = useLeaderboard();
-  const { data: copySpreadData, isLoading: copySpreadLoading } = useCopySpread(2);
-  const { data: categoryBreakdown, isLoading: categoryLoading } = useCategoryBreakdown();
-  const { data: benchmarkedPractices, isLoading: benchmarkedPracticesLoading } = useRecentBenchmarkedPractices(4);
+  
+  // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
+  const { data: unifiedData, isLoading: unifiedLoading } = useUnifiedDashboard(starRatingsFormat);
+  
+  // Extract data from unified response
+  const overview = unifiedData?.data?.overview;
+  const leaderboardData = unifiedData?.data?.leaderboard;
+  const copySpreadData = unifiedData?.data?.copy_spread;
+  const categoryBreakdown = unifiedData?.data?.category_breakdown || [];
+  const benchmarkedPractices = unifiedData?.data?.recent_benchmarked;
+  const plantPerformanceData = unifiedData?.data?.plant_performance;
+  const benchmarkStatsData = unifiedData?.data?.benchmark_stats;
+  const starRatingsData = unifiedData?.data?.star_ratings;
+  const recentPractices = unifiedData?.data?.recent_practices;
+  
+  // Still fetch plants separately as it's used in many places (minimal data)
   const { data: plantsData } = usePlants(true);
+  
+  // Use unified loading state for all data
+  const overviewLoading = unifiedLoading;
+  const leaderboardLoading = unifiedLoading;
+  const copySpreadLoading = unifiedLoading;
+  const categoryLoading = unifiedLoading;
+  const benchmarkedPracticesLoading = unifiedLoading;
+  const performanceLoading = unifiedLoading;
+  const benchmarkStatsLoading = unifiedLoading;
+  const starRatingsLoading = unifiedLoading;
+  const recentPracticesLoading = unifiedLoading;
   
   // State declarations (must be before hooks that use them)
   const [showDivisionSelector, setShowDivisionSelector] = useState(false);
@@ -102,25 +124,11 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   const [starDrillPlantId, setStarDrillPlantId] = useState<string | null>(null);
   const [starDrillData, setStarDrillData] = useState<{ month: string; savings: number; stars: number }[]>([]);
   
-  // Fetch plant performance data based on view
-  const { data: plantPerformanceData, isLoading: performanceLoading } = usePlantPerformance(
-    plantPerformanceView === "yearly" ? "yearly" : "monthly"
-  );
-  
-  // Fetch benchmark stats for current month
-  const { data: benchmarkStatsData, isLoading: benchmarkStatsLoading } = useBenchmarkStats();
-  
-  // Fetch star ratings with format
-  const { data: starRatingsData, isLoading: starRatingsLoading } = useStarRatings(starRatingsFormat);
-  
-  // Fetch recent practices
-  const { data: recentPractices, isLoading: recentPracticesLoading } = useRecentPractices(4);
-  
   // Use API data with fallback to props
   const actualThisMonthTotal = overview?.monthly_count ?? thisMonthTotal ?? 187;
   const actualYtdTotal = overview?.ytd_count ?? ytdTotal ?? 295;
   
-  // Fetch monthly trend for selected plant
+  // Fetch monthly trend for selected plant (lazy loading - only when plant selected)
   const { data: monthlyTrendData, isLoading: monthlyTrendLoading } = usePlantMonthlyTrend(
     starDrillPlantId || undefined,
     undefined,
@@ -354,8 +362,15 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             </CardHeader>
             <CardContent>
               {overviewLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <div className="h-12 w-16 bg-muted animate-pulse rounded mb-2 mx-auto" />
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded mx-auto" />
+                  </div>
+                  <div>
+                    <div className="h-12 w-16 bg-muted animate-pulse rounded mb-2 mx-auto" />
+                    <div className="h-4 w-20 bg-muted animate-pulse rounded mx-auto" />
+                  </div>
                 </div>
               ) : (
               <div className="grid grid-cols-2 gap-4 text-center">
@@ -390,7 +405,10 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             </CardHeader>
             <CardContent className="text-center">
               {overviewLoading ? (
-                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                <div className="space-y-2">
+                  <div className="h-12 w-20 bg-muted animate-pulse rounded mx-auto" />
+                  <div className="h-4 w-32 bg-muted animate-pulse rounded mx-auto" />
+                </div>
               ) : (
                 <>
                   <div className="text-3xl font-bold text-primary cursor-pointer" onClick={() => setBenchmarkedOpen(true)}>
@@ -483,27 +501,62 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {categoryLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-gradient-to-br p-4 rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                        <div className="h-6 w-12 bg-muted animate-pulse rounded" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {categoryBreakdown?.map((cat) => {
-                const getIcon = (name: string) => {
+                const getIcon = (name: string | undefined) => {
+                  if (!name) return <Settings className="h-8 w-8 text-purple-600" />;
                   switch (name.toLowerCase()) {
-                    case 'safety': return <Shield className="h-8 w-8" />;
-                    case 'quality': return <Target className="h-8 w-8" />;
-                    case 'productivity': return <Zap className="h-8 w-8" />;
-                    case 'cost': return <IndianRupee className="h-8 w-8" />;
-                    case 'digitalisation': return <Cpu className="h-8 w-8" />;
-                    case 'esg': return <LineChart className="h-8 w-8" />;
-                    case 'automation': return <Bot className="h-8 w-8" />;
-                    default: return <Settings className="h-8 w-8" />;
+                    case 'safety': return <Shield className="h-8 w-8 text-red-600" />;
+                    case 'quality': return <Target className="h-8 w-8 text-green-600" />;
+                    case 'productivity': return <Zap className="h-8 w-8 text-blue-600" />;
+                    case 'cost': return <IndianRupee className="h-8 w-8 text-yellow-600" />;
+                    case 'digitalisation': return <Cpu className="h-8 w-8 text-purple-600" />;
+                    case 'esg': return <LineChart className="h-8 w-8 text-green-600" />;
+                    case 'automation': return <Bot className="h-8 w-8 text-orange-600" />;
+                    default: return <Settings className="h-8 w-8 text-purple-600" />;
+                  }
+                };
+
+                const getCategoryColor = (name: string | undefined) => {
+                  if (!name) return "from-purple-50 to-purple-100 border-purple-200";
+                  switch (name.toLowerCase()) {
+                    case "safety":
+                      return "from-pink-50 to-pink-100 border-pink-200";
+                    case "quality":
+                      return "from-green-50 to-green-100 border-green-200";
+                    case "productivity":
+                      return "from-blue-50 to-blue-100 border-blue-200";
+                    case "cost":
+                      return "from-yellow-50 to-yellow-100 border-yellow-200";
+                    case "digitalisation":
+                      return "from-purple-50 to-purple-100 border-purple-200";
+                    case "esg":
+                      return "from-green-50 to-green-100 border-green-200";
+                    case "automation":
+                      return "from-orange-50 to-orange-100 border-orange-200";
+                    default:
+                      return "from-purple-50 to-purple-100 border-purple-200";
                   }
                 };
                 
+                if (!cat.category_name) return null;
+
                 return (
-                  <div key={cat.category_id} className={`bg-gradient-to-br p-4 rounded-lg border ${cat.color_class}`}>
+                  <div key={cat.category_id || cat.category_name} className={`bg-gradient-to-br p-4 rounded-lg border ${getCategoryColor(cat.category_name)}`}>
                     <div className="flex items-center space-x-3">
                       {getIcon(cat.category_name)}
                       <div>
@@ -550,9 +603,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {performanceLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              </div>
+              <ChartSkeleton />
             ) : (
             <ChartContainer
               config={{
@@ -633,9 +684,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {benchmarkStatsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <ChartSkeleton />
             ) : (() => {
               const benchmarkBPs = benchmarkStatsData || [];
               const totalThisMonth = benchmarkBPs.reduce((sum, p) => sum + p.benchmarked_count, 0);
@@ -726,9 +775,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {benchmarkedPracticesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <ListSkeleton items={4} />
             ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
               <div className="space-y-4">
                 {benchmarkedPractices.slice(0, 4).map((bp: any) => {
@@ -822,9 +869,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {starRatingsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : starRatingsData && starRatingsData.length > 0 ? (() => {
               // Parse savings strings (e.g., "14.2L" or "196.5L") to numbers
               const parseSavings = (savingsStr: string): number => {
@@ -900,9 +945,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 {monthlyTrendLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
+                  <TableSkeleton rows={5} />
                 ) : monthlyTrendData && monthlyTrendData.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -965,9 +1008,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {copySpreadLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : benchmarkedBPs && benchmarkedBPs.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1057,9 +1098,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {leaderboardLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : mergedLeaderboard.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p className="text-sm">No leaderboard data available</p>
@@ -1292,9 +1331,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           </CardHeader>
           <CardContent>
             {recentPracticesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <ListSkeleton items={4} />
             ) : recentPractices && recentPractices.length > 0 ? (
               <div className="space-y-4">
                 {recentPractices.map((practice) => {

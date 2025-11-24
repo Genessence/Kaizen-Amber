@@ -10,7 +10,7 @@ export const useLeaderboard = (year?: number) => {
   return useQuery<LeaderboardEntry[]>({
     queryKey: ['leaderboard', year],
     queryFn: () => apiService.getLeaderboard(year),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 
@@ -19,7 +19,7 @@ export const usePlantLeaderboardBreakdown = (plantId: string | undefined, year?:
     queryKey: ['leaderboard-breakdown', plantId, year],
     queryFn: () => apiService.getPlantBreakdown(plantId!, year),
     enabled: !!plantId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

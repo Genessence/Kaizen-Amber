@@ -1,0 +1,68 @@
+import type { Plant } from '@/types/api';
+
+export const mockPlants: Plant[] = [
+  {
+    id: 'plant-001',
+    name: 'Greater Noida (Ecotech 1)',
+    short_name: 'GN-E1',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-002',
+    name: 'Kanchipuram',
+    short_name: 'KAN',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-003',
+    name: 'Rajpura',
+    short_name: 'RAJ',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-004',
+    name: 'Shahjahanpur',
+    short_name: 'SHA',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-005',
+    name: 'Supa',
+    short_name: 'SUP',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-006',
+    name: 'Ranjangaon',
+    short_name: 'RAN',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'plant-007',
+    name: 'Ponneri',
+    short_name: 'PON',
+    division: 'Component',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+  },
+];
+

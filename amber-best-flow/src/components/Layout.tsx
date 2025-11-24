@@ -40,6 +40,7 @@ const Layout = () => {
                   src="/images/amberlogo.png" 
                   alt="Amber Logo" 
                   className="h-12 w-auto object-contain"
+                  style={{ maxWidth: '120px' }}
                 />
               </div>
               <div>

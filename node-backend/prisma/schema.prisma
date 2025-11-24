@@ -1,0 +1,239 @@
+// Prisma schema for Amber Best Practice Portal
+// Matches existing PostgreSQL database structure
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique @db.VarChar(255)
+  hashedPassword  String   @map("hashed_password") @db.VarChar(255)
+  fullName        String   @map("full_name") @db.VarChar(255)
+  role            String   @db.VarChar(50) // 'plant' or 'hq'
+  plantId         String?  @map("plant_id") @db.Uuid
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  plant           Plant?              @relation(fields: [plantId], references: [id])
+  submittedPractices BestPractice[]  @relation("SubmittedBy")
+  benchmarkedPractices BenchmarkedPractice[]
+  askedQuestions  PracticeQuestion[] @relation("AskedBy")
+  answeredQuestions PracticeQuestion[] @relation("AnsweredBy")
+
+  @@index([id])
+  @@index([email])
+  @@map("users")
+}
+
+model Plant {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  shortName   String   @map("short_name") @db.VarChar(100)
+  division    String   @db.VarChar(100)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  practices   BestPractice[]
+  copiedPractices CopiedPractice[]
+  monthlySavings MonthlySavings[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([id])
+  @@map("plants")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  slug        String   @unique @db.VarChar(100)
+  colorClass  String   @map("color_class") @db.VarChar(100)
+  iconName    String   @map("icon_name") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  practices   BestPractice[]
+
+  @@index([id])
+  @@index([slug])
+  @@map("categories")
+}
+
+model BestPractice {
+  id                String   @id @default(uuid()) @db.Uuid
+  title             String   @db.VarChar(500)
+  description       String   @db.Text
+  categoryId        String   @map("category_id") @db.Uuid
+  submittedByUserId String   @map("submitted_by_user_id") @db.Uuid
+  plantId           String   @map("plant_id") @db.Uuid
+  problemStatement  String   @map("problem_statement") @db.Text
+  solution          String   @db.Text
+  benefits          Json?    @db.JsonB
+  metrics           String?  @db.Text
+  implementation    String?  @db.Text
+  investment        String?  @db.Text
+  savingsAmount      Decimal? @map("savings_amount") @db.Decimal(12, 2)
+  savingsCurrency    String?  @map("savings_currency") @db.VarChar(50) // 'lakhs' or 'crores'
+  savingsPeriod      String?  @map("savings_period") @db.VarChar(50) // 'monthly' or 'annually'
+  areaImplemented   String?  @map("area_implemented") @db.VarChar(255)
+  status            String   @default("draft") @db.VarChar(50)
+  submittedDate     DateTime? @map("submitted_date") @db.Date
+  isDeleted         Boolean  @default(false) @map("is_deleted")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  category          Category              @relation(fields: [categoryId], references: [id])
+  submittedBy       User                  @relation("SubmittedBy", fields: [submittedByUserId], references: [id])
+  plant             Plant                 @relation(fields: [plantId], references: [id])
+  images            PracticeImage[]
+  documents         PracticeDocument[]
+  questions         PracticeQuestion[]
+  benchmarked       BenchmarkedPractice?
+  originalCopies    CopiedPractice[]      @relation("OriginalPractice")
+  copiedVersions    CopiedPractice[]      @relation("CopiedPractice")
+
+  @@index([id])
+  @@index([title])
+  @@index([submittedDate])
+  @@index([plantId, submittedDate(sort: Desc)])
+  @@index([categoryId])
+  @@index([status])
+  @@map("best_practices")
+}
+
+model PracticeImage {
+  id            String   @id @default(uuid()) @db.Uuid
+  practiceId    String   @map("practice_id") @db.Uuid
+  imageType     String   @map("image_type") @db.VarChar(50) // 'before' or 'after'
+  blobContainer String   @map("blob_container") @db.VarChar(255)
+  blobName      String   @map("blob_name") @db.VarChar(500)
+  blobUrl       String   @map("blob_url") @db.Text
+  fileSize      Int      @map("file_size")
+  contentType   String   @map("content_type") @db.VarChar(100)
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+
+  practice      BestPractice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@index([id])
+  @@index([practiceId])
+  @@map("practice_images")
+}
+
+model PracticeDocument {
+  id            String   @id @default(uuid()) @db.Uuid
+  practiceId    String   @map("practice_id") @db.Uuid
+  documentName  String   @map("document_name") @db.VarChar(255)
+  blobContainer String   @map("blob_container") @db.VarChar(255)
+  blobName      String   @map("blob_name") @db.VarChar(500)
+  blobUrl       String   @map("blob_url") @db.Text
+  fileSize      Int      @map("file_size")
+  contentType   String   @map("content_type") @db.VarChar(100)
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+
+  practice      BestPractice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@index([id])
+  @@index([practiceId])
+  @@map("practice_documents")
+}
+
+model BenchmarkedPractice {
+  id                  String   @id @default(uuid()) @db.Uuid
+  practiceId          String   @unique @map("practice_id") @db.Uuid
+  benchmarkedByUserId String   @map("benchmarked_by_user_id") @db.Uuid
+  benchmarkedDate     DateTime @map("benchmarked_date") @db.Date
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  practice            BestPractice @relation(fields: [practiceId], references: [id])
+  benchmarkedBy       User         @relation(fields: [benchmarkedByUserId], references: [id])
+
+  @@index([id])
+  @@index([practiceId])
+  @@index([benchmarkedDate(sort: Desc)])
+  @@map("benchmarked_practices")
+}
+
+model CopiedPractice {
+  id                  String   @id @default(uuid()) @db.Uuid
+  originalPracticeId  String   @map("original_practice_id") @db.Uuid
+  copiedPracticeId    String   @map("copied_practice_id") @db.Uuid
+  copyingPlantId      String   @map("copying_plant_id") @db.Uuid
+  copiedDate          DateTime @map("copied_date") @db.Date
+  implementationStatus String  @default("planning") @map("implementation_status") @db.VarChar(50)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  originalPractice    BestPractice @relation("OriginalPractice", fields: [originalPracticeId], references: [id])
+  copiedPractice      BestPractice @relation("CopiedPractice", fields: [copiedPracticeId], references: [id])
+  copyingPlant        Plant        @relation(fields: [copyingPlantId], references: [id])
+
+  @@index([id])
+  @@index([originalPracticeId, copyingPlantId])
+  @@map("copied_practices")
+}
+
+model PracticeQuestion {
+  id              String    @id @default(uuid()) @db.Uuid
+  practiceId      String    @map("practice_id") @db.Uuid
+  askedByUserId   String    @map("asked_by_user_id") @db.Uuid
+  questionText    String    @map("question_text") @db.Text
+  answerText      String?   @map("answer_text") @db.Text
+  answeredByUserId String?  @map("answered_by_user_id") @db.Uuid
+  answeredAt      DateTime? @map("answered_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  practice        BestPractice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  askedBy         User         @relation("AskedBy", fields: [askedByUserId], references: [id])
+  answeredBy      User?        @relation("AnsweredBy", fields: [answeredByUserId], references: [id])
+
+  @@index([id])
+  @@index([practiceId, createdAt(sort: Desc)])
+  @@map("practice_questions")
+}
+
+model MonthlySavings {
+  id              String   @id @default(uuid()) @db.Uuid
+  plantId         String   @map("plant_id") @db.Uuid
+  year            Int
+  month           Int      // 1-12
+  totalSavings    Decimal  @default(0) @map("total_savings") @db.Decimal(12, 2)
+  savingsCurrency String   @default("lakhs") @map("savings_currency") @db.VarChar(50)
+  practiceCount   Int      @default(0) @map("practice_count")
+  stars           Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  plant           Plant    @relation(fields: [plantId], references: [id])
+
+  @@unique([plantId, year, month], name: "plantId_year_month")
+  @@index([id])
+  @@index([plantId])
+  @@index([plantId, year, month(sort: Desc)])
+  @@map("monthly_savings")
+}
+
+model LeaderboardEntry {
+  id            String   @id @default(uuid()) @db.Uuid
+  plantId       String   @map("plant_id") @db.Uuid
+  year          Int
+  totalPoints   Int      @default(0) @map("total_points")
+  originPoints  Int      @default(0) @map("origin_points")
+  copierPoints  Int      @default(0) @map("copier_points")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  plant         Plant    @relation(fields: [plantId], references: [id])
+
+  @@unique([plantId, year], name: "plantId_year")
+  @@index([id])
+  @@index([plantId])
+  @@index([year, totalPoints(sort: Desc)])
+  @@map("leaderboard_entries")
+}
+

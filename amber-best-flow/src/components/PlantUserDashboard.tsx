@@ -21,6 +21,13 @@ import {
   Bot,
   Loader2,
 } from "lucide-react";
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ListSkeleton,
+  StatsCardSkeleton,
+  ChartSkeleton,
+} from "@/components/ui/skeletons";
 import { KeyboardEvent, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatCurrency } from "@/lib/utils";
@@ -57,12 +64,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import {
-  useDashboardOverview,
-  useCategoryBreakdown,
-  usePlantMonthlyTrend,
-  useStarRatings,
-} from "@/hooks/useAnalytics";
+// All analytics data now comes from useUnifiedDashboard hook
 import { useAuth } from "@/contexts/AuthContext";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import {
@@ -70,6 +72,7 @@ import {
   useRecentBenchmarkedPractices,
 } from "@/hooks/useBenchmarking";
 import { useMyPractices } from "@/hooks/useBestPractices";
+import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -108,16 +111,58 @@ const PlantUserDashboard = ({
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Fetch dashboard data from API
-  const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
-  const { data: myPractices, isLoading: practicesLoading } = useMyPractices();
-  const { data: leaderboardData, isLoading: leaderboardLoading } =
-    useLeaderboard();
-  const { data: copySpreadData, isLoading: copySpreadLoading } =
-    useCopySpread(2);
-  const { data: categoryBreakdown, isLoading: categoryLoading } =
-    useCategoryBreakdown();
-  const { data: benchmarkedPractices } = useRecentBenchmarkedPractices(4);
+  const [monthlySavingsFormat, setMonthlySavingsFormat] = useState<
+    "lakhs" | "crores"
+  >("lakhs");
+
+  // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
+  const { data: unifiedData, isLoading: unifiedLoading } =
+    useUnifiedDashboard(monthlySavingsFormat);
+
+  // Extract data from unified response
+  const overview = unifiedData?.data?.overview;
+  const myPractices = unifiedData?.data?.my_practices;
+  const leaderboardData = unifiedData?.data?.leaderboard;
+  const copySpreadData = unifiedData?.data?.copy_spread;
+  const categoryBreakdown = unifiedData?.data?.category_breakdown || [];
+  const benchmarkedPractices = unifiedData?.data?.recent_benchmarked;
+  const monthlyTrendData = (unifiedData?.data as any)?.monthly_trend;
+  const starRatingsData = (unifiedData?.data as any)?.star_ratings;
+
+  // Debug: Log category breakdown to console
+  useEffect(() => {
+    if (unifiedData?.data) {
+      console.log("Unified Dashboard Data:", unifiedData.data);
+      console.log("Category Breakdown:", unifiedData.data.category_breakdown);
+      console.log(
+        "Category Breakdown Length:",
+        unifiedData.data.category_breakdown?.length
+      );
+      console.log(
+        "Category Breakdown Type:",
+        typeof unifiedData.data.category_breakdown
+      );
+      console.log(
+        "Is Array?",
+        Array.isArray(unifiedData.data.category_breakdown)
+      );
+      if (
+        unifiedData.data.category_breakdown &&
+        unifiedData.data.category_breakdown.length > 0
+      ) {
+        console.log("First Category:", unifiedData.data.category_breakdown[0]);
+      }
+    }
+  }, [unifiedData]);
+
+  // Use unified loading state for all data
+  const overviewLoading = unifiedLoading;
+  const practicesLoading = unifiedLoading;
+  const leaderboardLoading = unifiedLoading;
+  const copySpreadLoading = unifiedLoading;
+  const categoryLoading = unifiedLoading;
+  const monthlyTrendLoading = unifiedLoading;
+  const starRatingsLoading = unifiedLoading;
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedBP, setSelectedBP] = useState<any>(null);
@@ -139,17 +184,6 @@ const PlantUserDashboard = ({
   const [ytdDialogOpen, setYtdDialogOpen] = useState(false);
   const [monthlyProgressDialogOpen, setMonthlyProgressDialogOpen] =
     useState(false);
-  const [monthlySavingsFormat, setMonthlySavingsFormat] = useState<
-    "lakhs" | "crores"
-  >("lakhs");
-
-  // Fetch monthly trend data for plant user
-  const { data: monthlyTrendData, isLoading: monthlyTrendLoading } =
-    usePlantMonthlyTrend(user?.plant_id, undefined, monthlySavingsFormat);
-
-  // Fetch star ratings for plant user
-  const { data: starRatingsData, isLoading: starRatingsLoading } =
-    useStarRatings(monthlySavingsFormat);
 
   // Use API data with fallback to props for backwards compatibility
   const actualMonthlyCount = overview?.monthly_count ?? monthlyCount ?? 1;
@@ -465,7 +499,7 @@ const PlantUserDashboard = ({
           <CardContent className="space-y-3 p-4 pt-2">
             <div className="flex items-center justify-between gap-4">
               {overviewLoading ? (
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <div className="h-12 w-16 bg-muted animate-pulse rounded" />
               ) : (
                 <div className="text-4xl font-bold text-primary">
                   {actualMonthlyCount}
@@ -499,7 +533,7 @@ const PlantUserDashboard = ({
           <CardContent className="space-y-3 p-4 pt-2">
             <div className="flex items-center justify-between gap-4">
               {overviewLoading ? (
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="h-10 w-16 bg-muted animate-pulse rounded" />
               ) : (
                 <div className="text-3xl font-bold text-primary">
                   {actualYtdCount}
@@ -524,50 +558,117 @@ const PlantUserDashboard = ({
           </CardHeader>
           <CardContent>
             {categoryLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                {categoryBreakdown?.map((cat) => {
-                  const getIcon = (name: string) => {
-                    switch (name.toLowerCase()) {
-                      case "safety":
-                        return <Shield className="h-8 w-8" />;
-                      case "quality":
-                        return <CheckCircle className="h-8 w-8" />;
-                      case "productivity":
-                        return <Zap className="h-8 w-8" />;
-                      case "cost":
-                        return <IndianRupee className="h-8 w-8" />;
-                      case "digitalisation":
-                        return <Cpu className="h-8 w-8" />;
-                      case "esg":
-                        return <LineChart className="h-8 w-8" />;
-                      case "automation":
-                        return <Bot className="h-8 w-8" />;
-                      default:
-                        return <Settings className="h-8 w-8" />;
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={cat.category_id}
-                      className={`bg-gradient-to-br p-4 rounded-lg border ${cat.color_class}`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        {getIcon(cat.category_name)}
-                        <div>
-                          <p className="font-semibold">{cat.category_name}</p>
-                          <p className="text-2xl font-bold">
-                            {cat.practice_count}
-                          </p>
-                        </div>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-gradient-to-br p-4 rounded-lg border"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                        <div className="h-6 w-12 bg-muted animate-pulse rounded" />
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
+              </div>
+            ) : categoryBreakdown &&
+              Array.isArray(categoryBreakdown) &&
+              categoryBreakdown.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {categoryBreakdown
+                  .filter((cat) => {
+                    // Only filter out null/undefined, keep 'Unknown' categories
+                    const isValid = cat && cat.category_name;
+                    if (!isValid) {
+                      console.warn("Filtered out invalid category:", cat);
+                    }
+                    return isValid;
+                  })
+                  .map((cat) => {
+                    const getIcon = (name: string | undefined) => {
+                      if (!name)
+                        return <Settings className="h-8 w-8 text-purple-600" />;
+                      switch (name.toLowerCase()) {
+                        case "safety":
+                          return <Shield className="h-8 w-8 text-red-600" />;
+                        case "quality":
+                          return (
+                            <CheckCircle className="h-8 w-8 text-green-600" />
+                          );
+                        case "productivity":
+                          return <Zap className="h-8 w-8 text-blue-600" />;
+                        case "cost":
+                          return (
+                            <IndianRupee className="h-8 w-8 text-yellow-600" />
+                          );
+                        case "digitalisation":
+                          return <Cpu className="h-8 w-8 text-purple-600" />;
+                        case "esg":
+                          return (
+                            <LineChart className="h-8 w-8 text-green-600" />
+                          );
+                        case "automation":
+                          return <Bot className="h-8 w-8 text-orange-600" />;
+                        default:
+                          return (
+                            <Settings className="h-8 w-8 text-purple-600" />
+                          );
+                      }
+                    };
+
+                    const getCategoryColor = (name: string | undefined) => {
+                      if (!name)
+                        return "from-purple-50 to-purple-100 border-purple-200";
+                      switch (name.toLowerCase()) {
+                        case "safety":
+                          return "from-pink-50 to-pink-100 border-pink-200";
+                        case "quality":
+                          return "from-green-50 to-green-100 border-green-200";
+                        case "productivity":
+                          return "from-blue-50 to-blue-100 border-blue-200";
+                        case "cost":
+                          return "from-yellow-50 to-yellow-100 border-yellow-200";
+                        case "digitalisation":
+                          return "from-purple-50 to-purple-100 border-purple-200";
+                        case "esg":
+                          return "from-green-50 to-green-100 border-green-200";
+                        case "automation":
+                          return "from-orange-50 to-orange-100 border-orange-200";
+                        default:
+                          return "from-purple-50 to-purple-100 border-purple-200";
+                      }
+                    };
+
+                    if (!cat.category_name) return null;
+
+                    return (
+                      <div
+                        key={cat.category_id || cat.category_name}
+                        className={`bg-gradient-to-br p-4 rounded-lg border ${getCategoryColor(
+                          cat.category_name
+                        )}`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          {getIcon(cat.category_name)}
+                          <div>
+                            <p className="font-semibold">
+                              {cat.category_name || "Unknown"}
+                            </p>
+                            <p className="text-2xl font-bold">
+                              {cat.practice_count}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No category data available</p>
               </div>
             )}
           </CardContent>
@@ -763,9 +864,7 @@ const PlantUserDashboard = ({
           </CardHeader>
           <CardContent>
             {copySpreadLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -905,9 +1004,7 @@ const PlantUserDashboard = ({
           </CardHeader>
           <CardContent>
             {monthlyTrendLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <ChartSkeleton />
             ) : (
               (() => {
                 // Use API data for monthly trend, fallback to empty array if no data
@@ -1218,9 +1315,7 @@ const PlantUserDashboard = ({
           <CardContent>
             <div className="space-y-4">
               {practicesLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
+                <ListSkeleton items={4} />
               ) : (myPractices || []).length > 0 ? (
                 (myPractices || []).slice(0, 4).map((practice, index) => (
                   <div
@@ -1274,9 +1369,7 @@ const PlantUserDashboard = ({
           </CardHeader>
           <CardContent>
             {leaderboardLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <TableSkeleton rows={5} />
             ) : mergedLeaderboard.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p className="text-sm">No leaderboard data available</p>

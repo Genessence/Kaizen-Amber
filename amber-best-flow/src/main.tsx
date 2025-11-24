@@ -12,7 +12,6 @@ const queryClient = new QueryClient({
       refetchOnMount: false, // Use cache unless stale - significantly improves navigation speed
       refetchOnReconnect: false, // Don't refetch when internet reconnects
       staleTime: 10 * 60 * 1000, // 10 minutes - data considered fresh for longer
-      keepPreviousData: true, // For pagination/filtering
       gcTime: 30 * 60 * 1000, // 30 minutes garbage collection - keep cache longer
     },
   },

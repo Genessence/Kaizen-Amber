@@ -26,6 +26,7 @@ model User {
   benchmarkedPractices BenchmarkedPractice[]
   askedQuestions  PracticeQuestion[] @relation("AskedBy")
   answeredQuestions PracticeQuestion[] @relation("AnsweredBy")
+  notifications    Notification[]
 
   @@index([id])
   @@index([email])
@@ -98,6 +99,7 @@ model BestPractice {
   benchmarked       BenchmarkedPractice?
   originalCopies    CopiedPractice[]      @relation("OriginalPractice")
   copiedVersions    CopiedPractice[]      @relation("CopiedPractice")
+  notifications     Notification[]
 
   @@index([id])
   @@index([title])
@@ -191,6 +193,7 @@ model PracticeQuestion {
   practice        BestPractice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
   askedBy         User         @relation("AskedBy", fields: [askedByUserId], references: [id])
   answeredBy      User?        @relation("AnsweredBy", fields: [answeredByUserId], references: [id])
+  notifications   Notification[]
 
   @@index([id])
   @@index([practiceId, createdAt(sort: Desc)])
@@ -235,5 +238,29 @@ model LeaderboardEntry {
   @@index([plantId])
   @@index([year, totalPoints(sort: Desc)])
   @@map("leaderboard_entries")
+}
+
+model Notification {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  type              String   @db.VarChar(50) // 'question_asked', 'question_answered', 'practice_benchmarked'
+  title             String   @db.VarChar(255)
+  message           String   @db.Text
+  relatedPracticeId String?  @map("related_practice_id") @db.Uuid
+  relatedQuestionId String?  @map("related_question_id") @db.Uuid
+  isRead            Boolean  @default(false) @map("is_read")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedPractice   BestPractice? @relation(fields: [relatedPracticeId], references: [id])
+  relatedQuestion   PracticeQuestion? @relation(fields: [relatedQuestionId], references: [id])
+
+  @@index([id])
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([relatedPracticeId])
+  @@index([relatedQuestionId])
+  @@map("notifications")
 }
 

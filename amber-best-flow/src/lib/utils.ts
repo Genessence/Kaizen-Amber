@@ -49,3 +49,34 @@ export function formatCurrency(value: number, decimals: number = 1, format: 'lak
   // 1 crore or more, still show in lakhs with decimals (truncated, not rounded)
   return `₹${formatTruncated(value, decimals)}L`;
 }
+
+/**
+ * Formats a date string to a readable format
+ * @param dateString - ISO date string or date string
+ * @param format - 'short' (Nov 20, 2025) or 'long' (November 20, 2025) (default: 'short')
+ * @returns Formatted date string
+ */
+export function formatDate(dateString: string | undefined | null, format: 'short' | 'long' = 'short'): string {
+  if (!dateString) return 'N/A';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    
+    if (format === 'long') {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+    
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  } catch (error) {
+    return 'Invalid Date';
+  }
+}

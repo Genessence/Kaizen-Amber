@@ -50,6 +50,7 @@ interface BestPracticeFormProps {
     category?: string;
     problemStatement?: string;
     solution?: string;
+    description?: string;
   } | null;
   pendingCopyMeta?: {
     originPlant?: string;
@@ -102,7 +103,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
 
   useEffect(() => {
     if (preFillData) {
+      // Only pre-fill these 4 fields: title, category, problemStatement, solution
       setTitle(preFillData.title || "");
+      
       // Find category ID from category name if provided
       if (preFillData.category && categoriesData) {
         const matchedCategory = categoriesData.find(
@@ -112,8 +115,14 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       } else {
         setCategory("");
       }
+      
       setProblemStatement(preFillData.problemStatement || "");
-      setSolution(preFillData.solution || "");
+      setSolution(preFillData.solution || preFillData.description || "");
+      
+      // Clear other fields (do NOT pre-fill these)
+      setBenefitsText("");
+      setMetricsText("");
+      setImplementationText("");
       setInvestmentText("");
       setImplementationArea("");
     } else {
@@ -122,6 +131,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       setCategory("");
       setProblemStatement("");
       setSolution("");
+      setBenefitsText("");
+      setMetricsText("");
+      setImplementationText("");
       setInvestmentText("");
       setImplementationArea("");
     }

@@ -41,53 +41,55 @@ export class AnalyticsService {
   async getDashboardOverview(currency: string = 'lakhs') {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
+    const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+    const startOfYear = new Date(currentYear, 0, 1);
 
-    // Total practices
-    const totalPractices = await prisma.bestPractice.count({
-      where: { isDeleted: false },
-    });
-
-    // This month practices
-    const thisMonthPractices = await prisma.bestPractice.count({
-      where: {
-        isDeleted: false,
-        submittedDate: {
-          gte: new Date(currentYear, currentMonth - 1, 1),
-          lt: new Date(currentYear, currentMonth, 1),
-        },
-      },
-    });
-
-    // YTD practices
-    const ytdPractices = await prisma.bestPractice.count({
-      where: {
-        isDeleted: false,
-        submittedDate: {
-          gte: new Date(currentYear, 0, 1),
-        },
-      },
-    });
-
-    // Total savings
-    const savingsResult = await prisma.bestPractice.aggregate({
-      where: {
-        isDeleted: false,
-        status: 'approved',
-        savingsAmount: { not: null },
-      },
-      _sum: { savingsAmount: true },
-    });
-
-    const totalSavings = savingsResult._sum.savingsAmount || Prisma.Decimal(0);
-
-    // Benchmark count
-    const benchmarkedCount = await prisma.benchmarkedPractice.count({
-      where: {
-        practice: {
+    // Run all count queries in parallel for better performance
+    const [
+      totalPractices,
+      thisMonthPractices,
+      ytdPractices,
+      savingsResult,
+      benchmarkedCount,
+    ] = await Promise.all([
+      prisma.bestPractice.count({
+        where: { isDeleted: false },
+      }),
+      prisma.bestPractice.count({
+        where: {
           isDeleted: false,
+          submittedDate: {
+            gte: startOfMonth,
+            lt: new Date(currentYear, currentMonth, 1),
+          },
         },
-      },
-    });
+      }),
+      prisma.bestPractice.count({
+        where: {
+          isDeleted: false,
+          submittedDate: {
+            gte: startOfYear,
+          },
+        },
+      }),
+      prisma.bestPractice.aggregate({
+        where: {
+          isDeleted: false,
+          status: 'approved',
+          savingsAmount: { not: null },
+        },
+        _sum: { savingsAmount: true },
+      }),
+      prisma.benchmarkedPractice.count({
+        where: {
+          practice: {
+            isDeleted: false,
+          },
+        },
+      }),
+    ]);
+
+    const totalSavings = savingsResult._sum.savingsAmount || new Prisma.Decimal(0);
 
     return {
       total_practices: totalPractices,
@@ -101,24 +103,40 @@ export class AnalyticsService {
   /**
    * Get unified dashboard (optimized single query)
    * Includes all dashboard data in one call for maximum performance
+   * All independent queries run in parallel for faster response
    */
   async getUnifiedDashboard(plantId?: string, currency: string = 'lakhs') {
-    const overview = await this.getDashboardOverview(currency);
-    const leaderboard = await this.getLeaderboardSummary();
-    const copySpread = await this.getCopySpreadSummary();
-    const categoryBreakdown = await this.getCategoryBreakdownSummary();
-    const recentBenchmarked = await this.getRecentBenchmarkedSummary();
-    const starRatings = await this.getStarRatingsSummary(currency);
-    const plantPerformance = await this.getPlantPerformanceSummary();
-    const benchmarkStats = await this.getBenchmarkStatsSummary();
-    const recentPractices = await this.getRecentPracticesSummary(4);
+    // Run all independent queries in parallel for maximum performance
+    const [
+      overview,
+      leaderboard,
+      copySpread,
+      categoryBreakdown,
+      recentBenchmarked,
+      starRatings,
+      plantPerformance,
+      benchmarkStats,
+      recentPractices,
+    ] = await Promise.all([
+      this.getDashboardOverview(currency),
+      this.getLeaderboardSummary(),
+      this.getCopySpreadSummary(),
+      this.getCategoryBreakdownSummary(),
+      this.getRecentBenchmarkedSummary(),
+      this.getStarRatingsSummary(currency),
+      this.getPlantPerformanceSummary(),
+      this.getBenchmarkStatsSummary(),
+      this.getRecentPracticesSummary(4),
+    ]);
     
-    // Include plant-specific data if plantId provided
+    // Include plant-specific data if plantId provided (run in parallel)
     let myPractices = null;
     let monthlyTrend = null;
     if (plantId) {
-      myPractices = await this.getMyPracticesSummary(plantId);
-      monthlyTrend = await this.getMonthlyTrendSummary(plantId, currency);
+      [myPractices, monthlyTrend] = await Promise.all([
+        this.getMyPracticesSummary(plantId),
+        this.getMonthlyTrendSummary(plantId, currency),
+      ]);
     }
 
     return {
@@ -191,13 +209,22 @@ export class AnalyticsService {
   }
 
   private async getCategoryBreakdownSummary() {
+    // Optimize: Use _count instead of loading all practices
     const categories = await prisma.category.findMany({
-      include: {
-        practices: {
-          where: {
-            isDeleted: false,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        colorClass: true,
+        iconName: true,
+        _count: {
+          select: {
+            practices: {
+              where: {
+                isDeleted: false,
+              },
+            },
           },
-          select: { id: true },
         },
       },
       orderBy: {
@@ -213,7 +240,7 @@ export class AnalyticsService {
         category_id: cat.id,
         category: cat.name,
         category_slug: cat.slug,
-        count: cat.practices.length,
+        count: cat._count.practices,
         color_class: cat.colorClass || '',
         icon_name: cat.iconName || '',
       }));
@@ -252,108 +279,147 @@ export class AnalyticsService {
   private async getStarRatingsSummary(currency: string = 'lakhs') {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
-    const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
-    const startOfYear = new Date(currentYear, 0, 1);
-
-    const plants = await prisma.plant.findMany({
-      where: { isActive: true },
-      include: {
-        practices: {
-          where: {
-            isDeleted: false,
-            status: 'approved',
-            savingsAmount: { not: null },
+    
+    // Use monthlySavings table for better performance instead of calculating from practices
+    const [monthlySavingsData, ytdSavingsData] = await Promise.all([
+      // Get current month savings from monthlySavings table
+      prisma.monthlySavings.findMany({
+        where: {
+          year: currentYear,
+          month: currentMonth,
+        },
+        include: {
+          plant: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
+      }),
+      // Get YTD savings by aggregating monthlySavings
+      prisma.monthlySavings.groupBy({
+        by: ['plantId'],
+        where: {
+          year: currentYear,
+        },
+        _sum: {
+          totalSavings: true,
+        },
+      }),
+    ]);
+
+    // Create a map for quick lookup
+    const ytdMap = new Map(
+      ytdSavingsData.map((item) => [item.plantId, item._sum.totalSavings || new Prisma.Decimal(0)])
+    );
+
+    // Get all active plants for complete list
+    const plants = await prisma.plant.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
       },
     });
 
-    return plants.map((plant) => {
-      // Calculate monthly savings
-      const monthlySavings = plant.practices
-        .filter((p) => {
-          const submittedDate = p.submittedDate;
-          if (!submittedDate) return false;
-          const date = new Date(submittedDate);
-          return date >= startOfMonth && date < new Date(currentYear, currentMonth, 1);
-        })
-        .reduce((sum, p) => sum + Number(p.savingsAmount || 0), 0);
+    return plants
+      .map((plant) => {
+        const monthlyData = monthlySavingsData.find((ms) => ms.plantId === plant.id);
+        const monthlySavings = monthlyData?.totalSavings || new Prisma.Decimal(0);
+        const ytdSavings = ytdMap.get(plant.id) || new Prisma.Decimal(0);
+        const stars = this.calculateStarRating(monthlySavings, currency);
 
-      // Calculate YTD savings
-      const ytdSavings = plant.practices
-        .filter((p) => {
-          const submittedDate = p.submittedDate;
-          if (!submittedDate) return false;
-          return new Date(submittedDate) >= startOfYear;
-        })
-        .reduce((sum, p) => sum + Number(p.savingsAmount || 0), 0);
-
-      // Calculate stars based on monthly savings
-      const stars = this.calculateStarRating(Prisma.Decimal(monthlySavings), currency);
-
-      return {
-        plant_id: plant.id,
-        plant_name: plant.name,
-        monthly_savings: this.formatCurrency(Prisma.Decimal(monthlySavings), currency),
-        ytd_savings: this.formatCurrency(Prisma.Decimal(ytdSavings), currency),
-        stars,
-        currency,
-      };
-    }).sort((a, b) => b.stars - a.stars);
+        return {
+          plant_id: plant.id,
+          plant_name: plant.name,
+          monthly_savings: this.formatCurrency(monthlySavings, currency),
+          ytd_savings: this.formatCurrency(ytdSavings, currency),
+          stars,
+          currency,
+        };
+      })
+      .sort((a, b) => b.stars - a.stars);
   }
 
   private async getPlantPerformanceSummary() {
     const currentYear = new Date().getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
 
+    // Optimize: Use _count instead of loading all practices
     const plants = await prisma.plant.findMany({
       where: { isActive: true },
-      include: {
-        practices: {
-          where: {
-            isDeleted: false,
-            submittedDate: {
-              gte: startOfYear,
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        _count: {
+          select: {
+            practices: {
+              where: {
+                isDeleted: false,
+                submittedDate: {
+                  gte: startOfYear,
+                },
+              },
             },
           },
-          select: { id: true },
         },
       },
     });
 
-    return plants.map((plant) => ({
-      plant_id: plant.id,
-      plant_name: plant.name,
-      short_name: plant.shortName,
-      submitted: plant.practices.length,
-    })).sort((a, b) => b.submitted - a.submitted);
+    return plants
+      .map((plant) => ({
+        plant_id: plant.id,
+        plant_name: plant.name,
+        short_name: plant.shortName,
+        submitted: plant._count.practices,
+      }))
+      .sort((a, b) => b.submitted - a.submitted);
   }
 
   private async getBenchmarkStatsSummary() {
-    const plants = await prisma.plant.findMany({
-      where: { isActive: true },
-      include: {
-        practices: {
-          where: {
-            isDeleted: false,
-          },
-          include: {
-            benchmarked: {
-              select: { id: true },
-            },
+    // Optimize: Count benchmarked practices per plant using aggregation
+    const benchmarkedPractices = await prisma.benchmarkedPractice.findMany({
+      where: {
+        practice: {
+          isDeleted: false,
+        },
+      },
+      select: {
+        practiceId: true,
+        practice: {
+          select: {
+            plantId: true,
           },
         },
       },
     });
 
-    return plants.map((plant) => {
-      const benchmarkedCount = plant.practices.filter((p) => p.benchmarked !== null).length;
-      return {
+    // Count benchmarked practices per plant
+    const plantBenchmarkedCount = new Map<string, number>();
+    benchmarkedPractices.forEach((bp) => {
+      const plantId = bp.practice.plantId;
+      const current = plantBenchmarkedCount.get(plantId) || 0;
+      plantBenchmarkedCount.set(plantId, current + 1);
+    });
+
+    // Get all active plants
+    const plants = await prisma.plant.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    return plants
+      .map((plant) => ({
         plant_id: plant.id,
         plant_name: plant.name,
-        benchmarked_count: benchmarkedCount,
-      };
-    }).sort((a, b) => b.benchmarked_count - a.benchmarked_count);
+        benchmarked_count: plantBenchmarkedCount.get(plant.id) || 0,
+      }))
+      .sort((a, b) => b.benchmarked_count - a.benchmarked_count);
   }
 
   private async getRecentPracticesSummary(limit: number = 4) {
@@ -463,11 +529,11 @@ export class AnalyticsService {
         const [year, month] = monthKey.split('-');
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const savings = monthlyData[monthKey].savings;
-        const stars = this.calculateStarRating(Prisma.Decimal(savings), currency);
+        const stars = this.calculateStarRating(new Prisma.Decimal(savings), currency);
 
         return {
           month: `${monthNames[parseInt(month) - 1]} ${year}`,
-          savings: this.formatCurrency(Prisma.Decimal(savings), currency),
+          savings: this.formatCurrency(new Prisma.Decimal(savings), currency),
           stars,
         };
       });

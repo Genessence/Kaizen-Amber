@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import prisma from '../config/database';
-import { ForbiddenError } from '../utils/errors';
+import { ForbiddenError, NotFoundError } from '../utils/errors';
+import { notificationService } from '../services/notification.service';
 
-// Note: Notifications table doesn't exist in the schema yet
-// This is a placeholder implementation
 export class NotificationsController {
   /**
    * Get notifications
@@ -16,16 +14,14 @@ export class NotificationsController {
 
       const page = parseInt(req.query.page as string) || 1;
       const pageSize = parseInt(req.query.page_size as string) || 20;
-      const skip = (page - 1) * pageSize;
 
-      // Placeholder - notifications table would need to be added to schema
-      res.json({
-        items: [],
-        total: 0,
+      const result = await notificationService.getUserNotifications(
+        req.user.userId,
         page,
-        page_size: pageSize,
-        total_pages: 0,
-      });
+        pageSize
+      );
+
+      res.json(result);
     } catch (error) {
       next(error);
     }
@@ -40,9 +36,10 @@ export class NotificationsController {
         return next(new ForbiddenError());
       }
 
-      // Placeholder
+      const count = await notificationService.getUnreadCount(req.user.userId);
+
       res.json({
-        unread_count: 0,
+        unread_count: count,
       });
     } catch (error) {
       next(error);
@@ -60,11 +57,18 @@ export class NotificationsController {
 
       const { id } = req.params;
 
-      // Placeholder
-      res.json({
-        id,
-        read: true,
-      });
+      try {
+        await notificationService.markAsRead(id, req.user.userId);
+        res.json({
+          id,
+          read: true,
+        });
+      } catch (error: any) {
+        if (error.message === 'Notification not found') {
+          return next(new NotFoundError('Notification not found'));
+        }
+        throw error;
+      }
     } catch (error) {
       next(error);
     }
@@ -79,7 +83,8 @@ export class NotificationsController {
         return next(new ForbiddenError());
       }
 
-      // Placeholder
+      await notificationService.markAllAsRead(req.user.userId);
+
       res.json({
         success: true,
         message: 'All notifications marked as read',

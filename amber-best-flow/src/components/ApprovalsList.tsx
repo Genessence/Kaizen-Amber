@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { useBestPractices } from "@/hooks/useBestPractices";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
+import { formatDate } from "@/lib/utils";
 
 interface ApprovalsListProps {
   userRole: "plant" | "hq";
@@ -190,7 +191,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
 
                           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            <span>{practice.submitted_date || practice.submittedDate || "N/A"}</span>
+                            <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
                           </div>
                         </div>
                       </div>

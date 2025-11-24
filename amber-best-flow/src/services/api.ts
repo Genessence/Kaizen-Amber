@@ -1291,16 +1291,16 @@ class APIService {
       success: true,
       data: response.items.map((item) => ({
         id: item.id,
-        user_id: item.user_id,
+        user_id: item.user_id || '',
         type: item.type,
         title: item.title,
         message: item.message,
         related_practice_id: item.related_practice_id,
         related_question_id: item.related_question_id,
-        practice_title: item.practice_title,
+        practice_title: item.related_practice?.title || item.practice_title,
         is_read: item.is_read,
         created_at: item.created_at,
-        updated_at: item.updated_at,
+        updated_at: item.created_at, // Backend doesn't have updated_at, use created_at
       })),
       pagination: {
         total: response.total,

@@ -26,8 +26,10 @@ import { useBestPractice } from "@/hooks/useBestPractices";
 import { usePracticeQuestions, useAskQuestion, useAnswerQuestion } from "@/hooks/useQuestions";
 import { usePracticeImages } from "@/hooks/usePracticeImages";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useMemo } from "react";
+import { useSocket } from "@/contexts/SocketContext";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface BestPracticeDetailProps {
   userRole: "plant" | "hq";
@@ -38,8 +40,10 @@ interface BestPracticeDetailProps {
 
 const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, onToggleBenchmark }: BestPracticeDetailProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   // Get current user
   const { user } = useAuth();
+  const { socket, isConnected } = useSocket();
   
   // Fetch full practice details if we have an ID
   const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(propPractice?.id);
@@ -49,6 +53,36 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   
   // Fetch questions for this practice
   const { data: questionsData = [], isLoading: questionsLoading } = usePracticeQuestions(practiceId);
+
+  // Join practice room for real-time Q&A updates
+  useEffect(() => {
+    if (!socket || !practiceId || !isConnected) return;
+
+    // Join the practice room
+    socket.emit('join-practice', practiceId);
+
+    // Listen for new questions
+    const handleQuestionAdded = (question: any) => {
+      // Invalidate questions query to refetch
+      queryClient.invalidateQueries({ queryKey: ['questions', practiceId] });
+    };
+
+    // Listen for question answers
+    const handleQuestionAnswered = (question: any) => {
+      // Invalidate questions query to refetch
+      queryClient.invalidateQueries({ queryKey: ['questions', practiceId] });
+    };
+
+    socket.on('question-added', handleQuestionAdded);
+    socket.on('question-answered', handleQuestionAnswered);
+
+    // Cleanup: leave room and remove listeners
+    return () => {
+      socket.emit('leave-practice', practiceId);
+      socket.off('question-added', handleQuestionAdded);
+      socket.off('question-answered', handleQuestionAnswered);
+    };
+  }, [socket, practiceId, isConnected, queryClient]);
   
   // Fetch images for this practice
   const { data: imagesData = [], isLoading: imagesLoading } = usePracticeImages(practiceId);

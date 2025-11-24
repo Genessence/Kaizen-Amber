@@ -27,7 +27,7 @@ export class AnalyticsController {
       const currency = (req.query.currency as string) || 'lakhs';
       
       // Get plant_id from user context if not provided in query
-      const userPlantId = plantId || req.user?.plant_id;
+      const userPlantId = plantId || req.user?.plantId;
       
       const data = await analyticsService.getUnifiedDashboard(userPlantId, currency);
       res.json({

@@ -1,6 +1,8 @@
+import { createServer } from 'http';
 import createApp from './app';
 import env from './config/env';
 import prisma from './config/database';
+import { initializeSocket, setSocketInstance } from './config/socket';
 
 const startServer = async () => {
   try {
@@ -9,12 +11,19 @@ const startServer = async () => {
     console.log('✅ Database connected successfully');
 
     const app = createApp();
+    const httpServer = createServer(app);
     const port = env.PORT;
 
-    app.listen(port, () => {
+    // Initialize Socket.io
+    const io = initializeSocket(httpServer);
+    setSocketInstance(io);
+    console.log('✅ Socket.io initialized');
+
+    httpServer.listen(port, () => {
       console.log(`🚀 Server running on port ${port}`);
       console.log(`📝 Environment: ${env.NODE_ENV}`);
       console.log(`🔗 API available at http://localhost:${port}/api/v1`);
+      console.log(`🔌 WebSocket server ready`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

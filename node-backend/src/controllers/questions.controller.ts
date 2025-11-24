@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { NotFoundError, ForbiddenError } from '../utils/errors';
+import { notificationService } from '../services/notification.service';
+import { emitToPractice } from '../config/socket';
 
 export class QuestionsController {
   /**
@@ -100,6 +102,30 @@ export class QuestionsController {
         },
       });
 
+      // Create notifications for practice owner and HQ admins
+      await notificationService.notifyQuestionAsked(
+        question.id,
+        practiceId,
+        req.user.userId,
+        question_text
+      );
+
+      // Emit real-time update to practice room
+      emitToPractice(practiceId, 'question-added', {
+        id: question.id,
+        practice_id: question.practiceId,
+        asked_by: {
+          id: question.askedBy.id,
+          full_name: question.askedBy.fullName,
+          email: question.askedBy.email,
+        },
+        question_text: question.questionText,
+        answer_text: question.answerText,
+        answered_by: null,
+        answered_at: null,
+        created_at: question.createdAt.toISOString(),
+      });
+
       res.status(201).json({
         id: question.id,
         practice_id: question.practiceId,
@@ -175,6 +201,35 @@ export class QuestionsController {
             },
           },
         },
+      });
+
+      // Create notification for question asker
+      await notificationService.notifyQuestionAnswered(
+        questionId,
+        question.practiceId,
+        question.askedByUserId,
+        req.user.userId,
+        answer_text
+      );
+
+      // Emit real-time update to practice room
+      emitToPractice(question.practiceId, 'question-answered', {
+        id: updated.id,
+        practice_id: updated.practiceId,
+        asked_by: {
+          id: updated.askedBy.id,
+          full_name: updated.askedBy.fullName,
+          email: updated.askedBy.email,
+        },
+        question_text: updated.questionText,
+        answer_text: updated.answerText,
+        answered_by: {
+          id: updated.answeredBy!.id,
+          full_name: updated.answeredBy!.fullName,
+          email: updated.answeredBy!.email,
+        },
+        answered_at: updated.answeredAt!.toISOString(),
+        created_at: updated.createdAt.toISOString(),
       });
 
       res.json({

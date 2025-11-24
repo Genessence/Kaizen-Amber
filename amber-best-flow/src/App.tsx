@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { SocketProvider } from "./contexts/SocketContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleBasedRoute from "./components/RoleBasedRoute";
 import Layout from "./components/Layout";
@@ -22,7 +23,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <SocketProvider>
+            <Routes>
             {/* Login page - redirect to dashboard if authenticated */}
             <Route path="/" element={<LoginPage />} />
             
@@ -81,7 +83,8 @@ const App = () => (
             
             {/* 404 page */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </SocketProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -73,6 +73,7 @@ import {
 } from "@/hooks/useBenchmarking";
 import { useMyPractices } from "@/hooks/useBestPractices";
 import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
+import { apiService } from "@/services/api";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -429,24 +430,86 @@ const PlantUserDashboard = ({
     return [];
   }, [leaderboardData, leaderboard]);
 
-  const confirmCopyImplement = () => {
-    // Prepare the data for pre-filling the form
+  const confirmCopyImplement = async () => {
+    // Fetch full practice details before navigating
     if (selectedBP) {
-      navigate("/practices/add", {
-        state: {
-          preFillData: {
-            title: selectedBP.title,
-            category: selectedBP.category,
-            problemStatement: selectedBP.problemStatement || "",
-            solution: selectedBP.solution || "",
+      const practiceId = selectedBP.id || selectedBP.practice_id;
+      if (practiceId) {
+        try {
+          // Fetch full practice details
+          const fullPractice = await apiService.getBestPractice(practiceId);
+
+          // Prepare pre-fill data - Only 4 fields: title, category, problemStatement, solution
+          const problemStatementValue =
+            fullPractice.problem_statement ||
+            (fullPractice as any).problemStatement ||
+            "";
+
+          navigate("/practices/add", {
+            state: {
+              preFillData: {
+                title:
+                  fullPractice.title ||
+                  selectedBP.title ||
+                  selectedBP.practice_title,
+                category:
+                  fullPractice.category_name ||
+                  selectedBP.category ||
+                  selectedBP.practice_category,
+                problemStatement: problemStatementValue,
+                solution:
+                  fullPractice.solution || fullPractice.description || "",
+              },
+              pendingCopyMeta: {
+                originPlant:
+                  fullPractice.plant_name ||
+                  selectedBP.plant ||
+                  selectedBP.plant_name,
+                bpTitle:
+                  fullPractice.title ||
+                  selectedBP.title ||
+                  selectedBP.practice_title,
+                originalPracticeId: practiceId,
+              },
+            },
+          });
+        } catch (error) {
+          console.error("Failed to fetch practice details:", error);
+          // Fallback to limited data if fetch fails - Only 4 fields
+          navigate("/practices/add", {
+            state: {
+              preFillData: {
+                title: selectedBP.title || selectedBP.practice_title,
+                category: selectedBP.category || selectedBP.practice_category,
+                problemStatement: "",
+                solution: "",
+              },
+              pendingCopyMeta: {
+                originPlant: selectedBP.plant || selectedBP.plant_name,
+                bpTitle: selectedBP.title || selectedBP.practice_title,
+                originalPracticeId: practiceId,
+              },
+            },
+          });
+        }
+      } else {
+        // Fallback if no practice ID
+        navigate("/practices/add", {
+          state: {
+            preFillData: {
+              title: selectedBP.title || selectedBP.practice_title,
+              category: selectedBP.category || selectedBP.practice_category,
+              problemStatement: "",
+              solution: "",
+            },
+            pendingCopyMeta: {
+              originPlant: selectedBP.plant || selectedBP.plant_name,
+              bpTitle: selectedBP.title || selectedBP.practice_title,
+              originalPracticeId: practiceId,
+            },
           },
-          pendingCopyMeta: {
-            originPlant: selectedBP.plant || selectedBP.plant_name,
-            bpTitle: selectedBP.title,
-            originalPracticeId: selectedBP.id || selectedBP.practice_id,
-          },
-        },
-      });
+        });
+      }
     }
     setShowConfirmDialog(false);
     setSelectedBP(null);

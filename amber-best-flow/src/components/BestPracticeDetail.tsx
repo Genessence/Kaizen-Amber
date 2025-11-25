@@ -25,6 +25,7 @@ import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchma
 import { useBestPractice } from "@/hooks/useBestPractices";
 import { usePracticeQuestions, useAskQuestion, useAnswerQuestion } from "@/hooks/useQuestions";
 import { usePracticeImages } from "@/hooks/usePracticeImages";
+import { usePracticeDocuments } from "@/hooks/usePracticeDocuments";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
 import { useState, useMemo, useEffect } from "react";
@@ -86,6 +87,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   
   // Fetch images for this practice
   const { data: imagesData = [], isLoading: imagesLoading } = usePracticeImages(practiceId);
+  
+  // Fetch documents for this practice
+  const { data: documentsData = [], isLoading: documentsLoading } = usePracticeDocuments(practiceId);
   
   // Q&A mutations
   const askQuestionMutation = useAskQuestion();
@@ -418,6 +422,85 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                 })()}
               </CardContent>
             </Card>
+          </div>
+
+          {/* Supporting Documents */}
+          <div>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Supporting Documents
+            </h4>
+            {documentsLoading ? (
+              <Card className="border-dashed">
+                <CardContent className="p-4">
+                  <div className="bg-muted/50 rounded-lg p-8 text-center">
+                    <Loader2 className="h-12 w-12 mx-auto text-muted-foreground animate-spin" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading documents...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : documentsData && documentsData.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documentsData.map((doc) => {
+                  const getFileIcon = (contentType: string) => {
+                    if (contentType.includes('pdf')) {
+                      return <FileText className="h-8 w-8 text-red-500" />;
+                    } else if (contentType.includes('word') || contentType.includes('document')) {
+                      return <FileText className="h-8 w-8 text-blue-500" />;
+                    } else if (contentType.includes('powerpoint') || contentType.includes('presentation')) {
+                      return <FileText className="h-8 w-8 text-orange-500" />;
+                    }
+                    return <FileText className="h-8 w-8 text-muted-foreground" />;
+                  };
+
+                  const formatFileSize = (bytes: number) => {
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                  };
+
+                  return (
+                    <Card
+                      key={doc.id}
+                      className="hover:shadow-md transition-shadow cursor-pointer border"
+                      onClick={() => {
+                        window.open(doc.blob_url, '_blank');
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            {getFileIcon(doc.content_type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate" title={doc.document_name}>
+                              {doc.document_name}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-muted-foreground">
+                                {formatFileSize(doc.file_size)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <Download className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Click to download</span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="p-4">
+                  <div className="bg-muted/50 rounded-lg p-8 text-center">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">No supporting documents available</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Benefits & Metrics */}

@@ -192,6 +192,36 @@ export class UploadsController {
   }
 
   /**
+   * Get practice documents
+   */
+  async getPracticeDocuments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { practiceId } = req.params;
+
+      const documents = await prisma.practiceDocument.findMany({
+        where: { practiceId },
+        orderBy: { uploadedAt: 'asc' },
+      });
+
+      res.json(
+        documents.map((doc) => ({
+          id: doc.id,
+          practice_id: doc.practiceId,
+          document_name: doc.documentName,
+          blob_container: doc.blobContainer,
+          blob_name: doc.blobName,
+          blob_url: doc.blobUrl,
+          file_size: doc.fileSize,
+          content_type: doc.contentType,
+          uploaded_at: doc.uploadedAt.toISOString(),
+        }))
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Delete practice image
    */
   async deletePracticeImage(req: Request, res: Response, next: NextFunction) {

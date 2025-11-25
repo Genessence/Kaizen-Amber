@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import { verifyAccessToken } from '../utils/jwt';
 import type { TokenPayload } from '../utils/jwt';
+import env from './env';
 
 interface AuthenticatedSocket {
   userId: string;
@@ -14,7 +15,7 @@ const authenticatedSockets = new Map<string, AuthenticatedSocket>();
 export const initializeSocket = (httpServer: HTTPServer): SocketIOServer => {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGINS ? JSON.parse(process.env.CORS_ORIGINS) : ['http://localhost:8080'],
+      origin: env.CORS_ORIGINS || ['http://localhost:8080'],
       methods: ['GET', 'POST'],
       credentials: true,
     },

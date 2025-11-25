@@ -422,6 +422,11 @@ export class BestPracticesController {
           category: true,
           plant: true,
           benchmarked: true,
+          _count: {
+            select: {
+              questions: true,
+            },
+          },
         },
       });
 
@@ -440,6 +445,7 @@ export class BestPracticesController {
           },
           status: practice.status,
           is_benchmarked: !!practice.benchmarked,
+          question_count: practice._count.questions,
           submitted_date: practice.submittedDate?.toISOString(),
           created_at: practice.createdAt.toISOString(),
         }))

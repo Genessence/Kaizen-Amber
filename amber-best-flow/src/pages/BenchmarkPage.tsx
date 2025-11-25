@@ -7,8 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import BenchmarkedList from '@/components/BenchmarkedList';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBenchmarkedPractices, useUnbenchmarkPractice } from '@/hooks/useBenchmarking';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { apiService } from '@/services/api';
+import { toast } from 'sonner';
 
 const BenchmarkPage = () => {
   const navigate = useNavigate();
@@ -33,6 +35,8 @@ const BenchmarkPage = () => {
         plant: benchmarkedItem.plant_name,
         plant_name: benchmarkedItem.plant_name,
         description: benchmarkedItem.description || `${benchmarkedItem.practice_title} - Best practice from ${benchmarkedItem.plant_name}`,
+        problemStatement: benchmarkedItem.problem_statement || '',
+        solution: benchmarkedItem.solution || benchmarkedItem.description || '',
         benchmarked_date: benchmarkedItem.benchmarked_date,
         copy_count: benchmarkedItem.copy_count || 0,
         // Include original benchmarked item data for reference
@@ -85,22 +89,44 @@ const BenchmarkPage = () => {
     }
   };
 
-  const handleCopyAndImplement = (bpData: any) => {
-    navigate('/practices/add', {
-      state: {
-        preFillData: {
-          title: bpData.title,
-          category: bpData.category || bpData.category_name,
-          problemStatement: bpData.problemStatement || bpData.problem || "",
-          solution: bpData.solution || bpData.description || "",
-        },
-        pendingCopyMeta: {
-          originPlant: bpData.originPlant || bpData.plant || bpData.plant_name,
-          bpTitle: bpData.title,
-          originalPracticeId: bpData.practice_id || bpData.id
+  const handleCopyAndImplement = async (bpData: any) => {
+    // Fetch full practice details to ensure we have all fields including problem_statement
+    const practiceId = bpData.practice_id || bpData.id;
+    if (!practiceId) {
+      toast.error('Practice ID is missing');
+      return;
+    }
+
+    try {
+      // Fetch full practice details
+      const fullPractice = await apiService.getBestPractice(practiceId);
+
+      // Prepare pre-fill data - Only 4 fields: title, category, problemStatement, solution
+      const problemStatementValue =
+        fullPractice.problem_statement ||
+        bpData.problemStatement ||
+        bpData.problem ||
+        "";
+
+      navigate('/practices/add', {
+        state: {
+          preFillData: {
+            title: fullPractice.title || bpData.title,
+            category: fullPractice.category_name || bpData.category || bpData.category_name,
+            problemStatement: problemStatementValue,
+            solution: fullPractice.solution || fullPractice.description || bpData.solution || bpData.description || "",
+          },
+          pendingCopyMeta: {
+            originPlant: fullPractice.plant_name || bpData.plant || bpData.plant_name,
+            bpTitle: fullPractice.title || bpData.title,
+            originalPracticeId: practiceId
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Failed to fetch practice details:', error);
+      toast.error('Failed to load practice details. Please try again.');
+    }
   };
 
   return (

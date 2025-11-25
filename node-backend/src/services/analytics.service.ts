@@ -346,7 +346,7 @@ export class AnalyticsService {
     const currentYear = new Date().getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
 
-    // Optimize: Use _count instead of loading all practices
+    // Get ALL active plants, including those with 0 submissions
     const plants = await prisma.plant.findMany({
       where: { isActive: true },
       select: {
@@ -366,16 +366,21 @@ export class AnalyticsService {
           },
         },
       },
+      orderBy: {
+        name: 'asc', // Order by name first, then we'll sort by submissions
+      },
     });
 
+    // Return all plants with their submission counts (including 0)
     return plants
       .map((plant) => ({
         plant_id: plant.id,
         plant_name: plant.name,
         short_name: plant.shortName,
-        submitted: plant._count.practices,
+        submitted: plant._count.practices || 0, // Ensure 0 if undefined
+        submitted_count: plant._count.practices || 0, // Alias for compatibility
       }))
-      .sort((a, b) => b.submitted - a.submitted);
+      .sort((a, b) => b.submitted - a.submitted); // Sort by submission count descending
   }
 
   private async getBenchmarkStatsSummary() {
@@ -438,6 +443,11 @@ export class AnalyticsService {
         submittedBy: {
           select: { fullName: true },
         },
+        _count: {
+          select: {
+            questions: true,
+          },
+        },
       },
       orderBy: { submittedDate: 'desc' },
       take: limit,
@@ -453,6 +463,7 @@ export class AnalyticsService {
       submitted_date: practice.submittedDate?.toISOString() || practice.createdAt.toISOString(),
       savings_amount: practice.savingsAmount ? Number(practice.savingsAmount) : null,
       savings_currency: practice.savingsCurrency || 'lakhs',
+      question_count: practice._count.questions || 0,
     }));
   }
 
@@ -469,6 +480,12 @@ export class AnalyticsService {
         submittedBy: {
           select: { fullName: true },
         },
+        benchmarked: true,
+        _count: {
+          select: {
+            questions: true,
+          },
+        },
       },
       orderBy: { submittedDate: 'desc' },
       take: 10,
@@ -481,6 +498,8 @@ export class AnalyticsService {
       submitted_by: practice.submittedBy.fullName,
       submitted_date: practice.submittedDate?.toISOString() || practice.createdAt.toISOString(),
       status: practice.status,
+      is_benchmarked: !!practice.benchmarked,
+      question_count: practice._count.questions,
       savings_amount: practice.savingsAmount ? Number(practice.savingsAmount) : null,
       savings_currency: practice.savingsCurrency || 'lakhs',
     }));

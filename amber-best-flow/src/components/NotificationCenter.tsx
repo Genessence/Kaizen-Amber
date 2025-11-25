@@ -5,9 +5,10 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, MessageCircle, Star, CheckCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Bell, MessageCircle, Star, CheckCircle, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Popover,
   PopoverContent,
@@ -20,15 +21,21 @@ import type { Notification } from '@/types/api';
 
 const NotificationCenter = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   
   // WebSocket connection for real-time notifications
   const ws = useNotificationWebSocket();
   
-  const { data: notificationsData, isLoading: notificationsLoading } = useNotifications(15);
-  const { data: unreadCountData } = useUnreadNotificationCount();
+  const { data: notificationsData, isLoading: notificationsLoading, error: notificationsError, refetch: refetchNotifications } = useNotifications(15);
+  const { data: unreadCountData, error: unreadCountError, refetch: refetchUnreadCount } = useUnreadNotificationCount();
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllAsRead();
+  
+  const handleRetry = () => {
+    refetchNotifications();
+    refetchUnreadCount();
+  };
 
   const notifications = notificationsData?.data || [];
   const unreadCount = unreadCountData?.unread_count || 0;
@@ -144,6 +151,23 @@ const NotificationCenter = () => {
           {notificationsLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notificationsError ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <Bell className="h-12 w-12 text-muted-foreground mb-3 opacity-50" />
+              <p className="text-sm text-muted-foreground mb-2">Failed to load notifications</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                {notificationsError instanceof Error ? notificationsError.message : 'Unknown error'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetry}
+                className="text-xs"
+              >
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Retry
+              </Button>
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

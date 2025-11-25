@@ -35,9 +35,11 @@ const BenchmarkedList = ({ items, onUnbenchmark, onCopyAndImplement }: Benchmark
     if (selectedBP && onCopyAndImplement) {
       onCopyAndImplement({
         title: selectedBP.title,
-        category: selectedBP.category,
-        problemStatement: selectedBP.problemStatement || "",
-        solution: selectedBP.solution || selectedBP.description || "",
+        category: selectedBP.category || selectedBP.category_name,
+        problemStatement: selectedBP.problemStatement || selectedBP.benchmarked_item?.problem_statement || "",
+        solution: selectedBP.solution || selectedBP.description || selectedBP.benchmarked_item?.solution || "",
+        practice_id: selectedBP.practice_id || selectedBP.id,
+        plant: selectedBP.plant || selectedBP.plant_name,
       });
     }
     setShowConfirmDialog(false);

@@ -29,6 +29,7 @@ router.post(
   uploadsController.confirmDocumentUpload.bind(uploadsController)
 );
 router.get('/images/:practiceId', authenticate, uploadsController.getPracticeImages.bind(uploadsController));
+router.get('/documents/:practiceId', authenticate, uploadsController.getPracticeDocuments.bind(uploadsController));
 router.delete('/images/:imageId', authenticate, uploadsController.deletePracticeImage.bind(uploadsController));
 
 export default router;

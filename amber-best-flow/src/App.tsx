@@ -7,6 +7,7 @@ import { SocketProvider } from "./contexts/SocketContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleBasedRoute from "./components/RoleBasedRoute";
 import Layout from "./components/Layout";
+import ScrollToTop from "./components/ScrollToTop";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import PracticesPage from "./pages/PracticesPage";
@@ -22,6 +23,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <SocketProvider>
             <Routes>

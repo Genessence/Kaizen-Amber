@@ -145,6 +145,8 @@ export class BenchmarkingController {
           id: bp.practice.id,
           title: bp.practice.title,
           description: bp.practice.description,
+          problem_statement: bp.practice.problemStatement,
+          solution: bp.practice.solution,
           category: {
             id: bp.practice.category.id,
             name: bp.practice.category.name,

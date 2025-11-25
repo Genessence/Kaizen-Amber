@@ -20,6 +20,7 @@ import {
   LineChart,
   Bot,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   CardSkeleton,
@@ -73,7 +74,10 @@ import {
 } from "@/hooks/useBenchmarking";
 import { useMyPractices } from "@/hooks/useBestPractices";
 import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
+import { useCategories } from "@/hooks/useCategories";
 import { apiService } from "@/services/api";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -117,7 +121,7 @@ const PlantUserDashboard = ({
   >("lakhs");
 
   // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
-  const { data: unifiedData, isLoading: unifiedLoading } =
+  const { data: unifiedData, isLoading: unifiedLoading, error: unifiedError } =
     useUnifiedDashboard(monthlySavingsFormat);
 
   // Extract data from unified response
@@ -186,6 +190,12 @@ const PlantUserDashboard = ({
   const [ytdDialogOpen, setYtdDialogOpen] = useState(false);
   const [monthlyProgressDialogOpen, setMonthlyProgressDialogOpen] =
     useState(false);
+  
+  // YTD Dialog filters
+  const [ytdCategoryFilter, setYtdCategoryFilter] = useState<string>("all");
+  const [ytdBenchmarkFilter, setYtdBenchmarkFilter] = useState<string>("all"); // "all", "benchmarked", "not-benchmarked"
+  const [ytdSearchTerm, setYtdSearchTerm] = useState<string>("");
+  const [ytdSortBy, setYtdSortBy] = useState<string>("date"); // "date", "category", "questions"
 
   // Use API data with fallback to props for backwards compatibility
   const actualMonthlyCount = overview?.monthly_count ?? monthlyCount ?? 1;
@@ -219,46 +229,82 @@ const PlantUserDashboard = ({
     }
   }, [myPractices]);
 
+  // Get categories for filter
+  const { data: categoriesData } = useCategories();
+  
   const ytdPractices = useMemo(() => {
-    const fallbackPractices = [
-      {
-        title: "Automated Quality Inspection System",
-        category: "Quality",
-        date: "2024-01-15",
-        questions: 2,
-        benchmarked: true,
-      },
-      {
-        title: "Energy Efficient Cooling Process",
-        category: "Cost",
-        date: "2024-01-12",
-        questions: 0,
-        benchmarked: true,
-      },
-      {
-        title: "Safety Protocol for Chemical Handling",
-        category: "Safety",
-        date: "2024-01-10",
-        questions: 1,
-        benchmarked: false,
-      },
-      {
-        title: "Production Line Optimization",
-        category: "Productivity",
-        date: "2024-01-08",
-        questions: 3,
-        benchmarked: false,
-      },
-    ];
-    const source =
-      recentSubmissions && recentSubmissions.length > 0
-        ? recentSubmissions
-        : fallbackPractices;
-    return source.map((practice) => ({
-      ...practice,
-      benchmarked: practice.benchmarked ?? false,
-    }));
-  }, [recentSubmissions]);
+    // Get current year start date
+    const currentYear = new Date().getFullYear();
+    const yearStart = new Date(currentYear, 0, 1);
+    
+    // Filter myPractices to only include practices from current year
+    const practicesFromAPI = myPractices || [];
+    let ytdPracticesList = practicesFromAPI
+      .filter((practice: any) => {
+        const submittedDate = practice.submitted_date || practice.submittedDate;
+        if (!submittedDate) return false;
+        const practiceDate = new Date(submittedDate);
+        return practiceDate >= yearStart;
+      })
+      .map((practice: any) => {
+        const submittedDate = practice.submitted_date || practice.submittedDate;
+        const practiceDate = new Date(submittedDate);
+        
+        // Format date as YYYY-MM-DD
+        const formattedDate = practiceDate.toISOString().split('T')[0];
+        
+        // Get category name (handle both object and string formats)
+        const categoryName = typeof practice.category === 'string' 
+          ? practice.category 
+          : practice.category?.name || practice.category_name || 'Unknown';
+        
+        return {
+          id: practice.id,
+          title: practice.title,
+          category: categoryName,
+          date: formattedDate,
+          questions: practice.question_count || 0,
+          benchmarked: practice.is_benchmarked || false,
+        };
+      });
+    
+    // Apply filters
+    if (ytdCategoryFilter !== "all") {
+      ytdPracticesList = ytdPracticesList.filter(
+        (practice) => practice.category.toLowerCase() === ytdCategoryFilter.toLowerCase()
+      );
+    }
+    
+    if (ytdBenchmarkFilter === "benchmarked") {
+      ytdPracticesList = ytdPracticesList.filter((practice) => practice.benchmarked);
+    } else if (ytdBenchmarkFilter === "not-benchmarked") {
+      ytdPracticesList = ytdPracticesList.filter((practice) => !practice.benchmarked);
+    }
+    
+    if (ytdSearchTerm) {
+      const searchLower = ytdSearchTerm.toLowerCase();
+      ytdPracticesList = ytdPracticesList.filter(
+        (practice) =>
+          practice.title.toLowerCase().includes(searchLower) ||
+          practice.category.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply sorting
+    ytdPracticesList.sort((a, b) => {
+      switch (ytdSortBy) {
+        case "category":
+          return a.category.localeCompare(b.category);
+        case "questions":
+          return b.questions - a.questions; // Descending
+        case "date":
+        default:
+          return new Date(b.date).getTime() - new Date(a.date).getTime(); // Descending (newest first)
+      }
+    });
+    
+    return ytdPracticesList;
+  }, [myPractices, ytdCategoryFilter, ytdBenchmarkFilter, ytdSearchTerm, ytdSortBy]);
 
   const handleYtdCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -739,7 +785,19 @@ const PlantUserDashboard = ({
         </Card>
       </div>
 
-      <AlertDialog open={ytdDialogOpen} onOpenChange={setYtdDialogOpen}>
+      <AlertDialog 
+        open={ytdDialogOpen} 
+        onOpenChange={(open) => {
+          setYtdDialogOpen(open);
+          // Reset filters when dialog closes
+          if (!open) {
+            setYtdCategoryFilter("all");
+            setYtdBenchmarkFilter("all");
+            setYtdSearchTerm("");
+            setYtdSortBy("date");
+          }
+        }}
+      >
         <AlertDialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-4">
           <AlertDialogHeader className="pb-3">
             <AlertDialogTitle className="text-lg">
@@ -750,6 +808,91 @@ const PlantUserDashboard = ({
               status.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          
+          {/* Filters Section */}
+          <div className="space-y-3 pb-4 border-b">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Search Filter */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ytd-search" className="text-xs">Search</Label>
+                <Input
+                  id="ytd-search"
+                  placeholder="Search practices..."
+                  value={ytdSearchTerm}
+                  onChange={(e) => setYtdSearchTerm(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              
+              {/* Category Filter */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ytd-category" className="text-xs">Category</Label>
+                <Select value={ytdCategoryFilter} onValueChange={setYtdCategoryFilter}>
+                  <SelectTrigger id="ytd-category" className="h-8 text-xs">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categoriesData?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Benchmark Status Filter */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ytd-benchmark" className="text-xs">Benchmark Status</Label>
+                <Select value={ytdBenchmarkFilter} onValueChange={setYtdBenchmarkFilter}>
+                  <SelectTrigger id="ytd-benchmark" className="h-8 text-xs">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="benchmarked">Benchmarked</SelectItem>
+                    <SelectItem value="not-benchmarked">Not Benchmarked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Sort Filter */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ytd-sort" className="text-xs">Sort By</Label>
+                <Select value={ytdSortBy} onValueChange={setYtdSortBy}>
+                  <SelectTrigger id="ytd-sort" className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Date (Newest)</SelectItem>
+                    <SelectItem value="category">Category</SelectItem>
+                    <SelectItem value="questions">Q&A Count</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {/* Reset Filters Button */}
+            {(ytdCategoryFilter !== "all" || ytdBenchmarkFilter !== "all" || ytdSearchTerm || ytdSortBy !== "date") && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setYtdCategoryFilter("all");
+                    setYtdBenchmarkFilter("all");
+                    setYtdSearchTerm("");
+                    setYtdSortBy("date");
+                  }}
+                >
+                  Reset Filters
+                </Button>
+              </div>
+            )}
+          </div>
+          
           <div className="overflow-x-auto flex-1 min-h-0 -mx-2 px-2">
             <table className="w-full text-sm">
               <thead>
@@ -766,39 +909,61 @@ const PlantUserDashboard = ({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {ytdPractices.map((practice, index) => (
-                  <tr
-                    key={`${practice.title}-${index}`}
-                    className="hover:bg-accent/50 transition-colors"
-                  >
-                    <td className="py-2 px-3 font-medium text-xs">
-                      {practice.title}
-                    </td>
-                    <td className="py-2 px-3 text-xs">{practice.category}</td>
-                    <td className="py-2 px-3 text-xs">{practice.date}</td>
-                    <td className="py-2 px-3 text-center">
-                      <Badge
-                        variant="outline"
-                        className={
-                          practice.benchmarked
-                            ? "bg-success/10 text-success border-success text-xs px-2 py-0.5"
-                            : "bg-muted/50 text-muted-foreground text-xs px-2 py-0.5"
+                {ytdPractices.length > 0 ? (
+                  ytdPractices.map((practice, index) => (
+                    <tr
+                      key={`${practice.id || practice.title}-${index}`}
+                      className="hover:bg-accent/50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        if (practice.id) {
+                          setYtdDialogOpen(false);
+                          navigate(`/practices/${practice.id}`);
                         }
-                      >
-                        {practice.benchmarked
-                          ? "Benchmarked"
-                          : "Not Benchmarked"}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-3 text-center text-xs">
-                      {practice.questions ?? 0}
+                      }}
+                    >
+                      <td className="py-2 px-3 font-medium text-xs">
+                        {practice.title}
+                      </td>
+                      <td className="py-2 px-3 text-xs">{practice.category}</td>
+                      <td className="py-2 px-3 text-xs">{practice.date}</td>
+                      <td className="py-2 px-3 text-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            practice.benchmarked
+                              ? "bg-success/10 text-success border-success text-xs px-2 py-0.5"
+                              : "bg-muted/50 text-muted-foreground text-xs px-2 py-0.5"
+                          }
+                        >
+                          {practice.benchmarked
+                            ? "Benchmarked"
+                            : "Not Benchmarked"}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-3 text-center text-xs">
+                        {practice.questions ?? 0}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="py-8 text-center text-muted-foreground text-sm"
+                    >
+                      {ytdCategoryFilter !== "all" || ytdBenchmarkFilter !== "all" || ytdSearchTerm
+                        ? "No practices match your filters"
+                        : "No practices submitted this year yet"}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
           <AlertDialogFooter className="pt-3 mt-2 border-t">
+            <div className="text-xs text-muted-foreground mr-auto">
+              Showing {ytdPractices.length} practice{ytdPractices.length !== 1 ? 's' : ''}
+            </div>
             <AlertDialogCancel className="text-sm">Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1404,45 +1569,75 @@ const PlantUserDashboard = ({
           <CardContent>
             {unifiedLoading ? (
               <ListSkeleton items={4} />
+            ) : unifiedError ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2 opacity-50" />
+                <p className="text-sm">Failed to load recent practices</p>
+                <p className="text-xs text-muted-foreground mt-1">Please try again later</p>
+              </div>
             ) : recentPractices && recentPractices.length > 0 ? (
               <div className="space-y-4">
                 {recentPractices
                   .slice(0, 4)
-                  .map((practice: any, index: number) => (
-                    <div
-                      key={practice.id || index}
-                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                      onClick={() => {
-                        navigate(`/practices/${practice.id}`);
-                      }}
-                    >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{practice.title}</h4>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {practice.category_name}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {practice.submitted_date || "N/A"}
-                          </span>
+                  .map((practice: any, index: number) => {
+                    // Calculate time ago from submitted_date_iso (preferred) or submitted_date
+                    const submittedDate = practice.submitted_date_iso 
+                      ? new Date(practice.submitted_date_iso) 
+                      : (practice.submitted_date ? new Date(practice.submitted_date) : null);
+                    
+                    const timeAgo = submittedDate
+                      ? (() => {
+                          const diffMs = Date.now() - submittedDate.getTime();
+                          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                          const diffDays = Math.floor(diffHours / 24);
+                          const diffWeeks = Math.floor(diffDays / 7);
+                          const diffMonths = Math.floor(diffDays / 30);
+                          
+                          if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
+                          if (diffWeeks > 0) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
+                          if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                          if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                          return 'Just now';
+                        })()
+                      : practice.submitted_date || 'Recently';
+                    
+                    return (
+                      <div
+                        key={practice.id || index}
+                        className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
+                        onClick={() => {
+                          navigate(`/practices/${practice.id}`);
+                        }}
+                      >
+                        <div className="flex-1">
+                          <h4 className="font-medium">{practice.title}</h4>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {practice.category_name || "Other"}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {practice.plant_name || "Unknown Plant"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">• {timeAgo}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {practice.question_count > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="bg-primary/10 text-primary text-xs"
+                            >
+                              {practice.question_count} Q&A
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {practice.question_count > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="bg-primary/10 text-primary"
-                          >
-                            {practice.question_count} Q&A
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             ) : (
-              <div className="text-center text-muted-foreground py-4">
-                No recent practices available.
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No recent practices available</p>
               </div>
             )}
           </CardContent>

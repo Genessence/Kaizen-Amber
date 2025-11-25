@@ -27,6 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateBestPractice } from "@/hooks/useBestPractices";
+import { useCopyImplement } from "@/hooks/useCopyImplement";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
@@ -85,6 +86,7 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
   // Fetch categories from API
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
   const createMutation = useCreateBestPractice();
+  const copyMutation = useCopyImplement();
 
   const { toast: oldToast } = useToast();
 

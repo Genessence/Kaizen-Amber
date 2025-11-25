@@ -98,7 +98,13 @@ class APIService {
         body: requestOptions.body
       });
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+      // Add timeout to prevent infinite loading (30 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout: The request took too long to complete')), 30000);
+      });
+      
+      const fetchPromise = fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
       
       console.log('API Response:', {
         status: response.status,
@@ -417,6 +423,7 @@ class APIService {
       plant: item.plant,
       status: item.status,
       is_benchmarked: item.is_benchmarked || false,
+      question_count: item.question_count || 0,
       submitted_date: item.submitted_date,
       created_at: item.created_at,
     }));
@@ -493,6 +500,8 @@ class APIService {
       plant_name: item.plant?.name || item.plant_name,
       benchmarked_date: item.benchmarked_date,
       copy_count: 0,
+      problem_statement: item.problem_statement || '',
+      solution: item.solution || item.description || '',
     }));
   }
 
@@ -944,9 +953,23 @@ class APIService {
           submitted_date_iso: practice.submitted_date || '',
           savings_amount: practice.savings_amount || null,
           savings_currency: practice.savings_currency || 'lakhs',
-          question_count: 0, // Will be populated if needed from practice details
+          question_count: practice.question_count || 0,
         })),
-        my_practices: data.my_practices || [],
+        my_practices: (data.my_practices || []).map((practice: any) => ({
+          id: practice.id || '',
+          title: practice.title || '',
+          description: practice.description || '',
+          category: practice.category || '',
+          category_name: practice.category || '',
+          plant: practice.plant || '',
+          plant_name: practice.plant || '',
+          status: practice.status || '',
+          is_benchmarked: practice.is_benchmarked || false,
+          question_count: practice.question_count || 0,
+          submitted_date: practice.submitted_date || practice.submittedDate || '',
+          submittedDate: practice.submitted_date || practice.submittedDate || '',
+          created_at: practice.created_at || '',
+        })),
         monthly_trend: data.monthly_trend || [],
       },
     };
@@ -1219,6 +1242,13 @@ class APIService {
   }
 
   /**
+   * List practice documents
+   */
+  async getPracticeDocuments(practiceId: string): Promise<PracticeDocument[]> {
+    return this.request<PracticeDocument[]>(`/uploads/documents/${practiceId}`);
+  }
+
+  /**
    * Delete practice image
    */
   async deletePracticeImage(practiceId: string, imageId: string): Promise<{ success: boolean; message: string }> {
@@ -1269,56 +1299,90 @@ class APIService {
     offset?: number;
     is_read?: boolean;
   }): Promise<NotificationListResponse> {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) {
-      const page = Math.floor((params.offset || 0) / params.limit) + 1;
-      queryParams.append('page', page.toString());
-      queryParams.append('page_size', params.limit.toString());
-    }
-    if (params?.is_read !== undefined) {
-      queryParams.append('is_read', params.is_read.toString());
-    }
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) {
+        const page = Math.floor((params.offset || 0) / params.limit) + 1;
+        queryParams.append('page', page.toString());
+        queryParams.append('page_size', params.limit.toString());
+      }
+      if (params?.is_read !== undefined) {
+        queryParams.append('is_read', params.is_read.toString());
+      }
 
-    const response = await this.request<{
-      items: any[];
-      total: number;
-      page: number;
-      page_size: number;
-      total_pages: number;
-    }>(`/notifications${queryParams.toString() ? '?' + queryParams.toString() : ''}`);
+      const endpoint = `/notifications${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      console.log('Fetching notifications from:', endpoint);
 
-    return {
-      success: true,
-      data: response.items.map((item) => ({
-        id: item.id,
-        user_id: item.user_id || '',
-        type: item.type,
-        title: item.title,
-        message: item.message,
-        related_practice_id: item.related_practice_id,
-        related_question_id: item.related_question_id,
-        practice_title: item.related_practice?.title || item.practice_title,
-        is_read: item.is_read,
-        created_at: item.created_at,
-        updated_at: item.created_at, // Backend doesn't have updated_at, use created_at
-      })),
-      pagination: {
-        total: response.total,
-        limit: response.page_size,
-        offset: (response.page - 1) * response.page_size,
-        has_more: response.page < response.total_pages,
-      },
-    };
+      const response = await this.request<{
+        items: any[];
+        total: number;
+        page: number;
+        page_size: number;
+        total_pages: number;
+      }>(endpoint);
+
+      console.log('Notifications response:', response);
+
+      if (!response || !response.items) {
+        console.warn('Invalid notifications response:', response);
+        return {
+          success: true,
+          data: [],
+          pagination: {
+            total: 0,
+            limit: params?.limit || 15,
+            offset: 0,
+            has_more: false,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: response.items.map((item) => ({
+          id: item.id,
+          user_id: item.user_id || '',
+          type: item.type,
+          title: item.title,
+          message: item.message,
+          related_practice_id: item.related_practice_id,
+          related_question_id: item.related_question_id,
+          practice_title: item.related_practice?.title || item.practice_title,
+          is_read: item.is_read,
+          created_at: item.created_at,
+          updated_at: item.created_at, // Backend doesn't have updated_at, use created_at
+        })),
+        pagination: {
+          total: response.total || 0,
+          limit: response.page_size || params?.limit || 15,
+          offset: (response.page - 1) * (response.page_size || params?.limit || 15),
+          has_more: response.page < (response.total_pages || 1),
+        },
+      };
+    } catch (error) {
+      console.error('Error in getNotifications:', error);
+      throw error;
+    }
   }
 
   /**
    * Get unread notification count
    */
   async getUnreadNotificationCount(): Promise<UnreadCountResponse> {
-    const response = await this.request<{ unread_count: number }>('/notifications/unread-count');
-    return {
-      unread_count: response.unread_count || 0,
-    };
+    try {
+      console.log('Fetching unread notification count');
+      const response = await this.request<{ unread_count: number }>('/notifications/unread-count');
+      console.log('Unread count response:', response);
+      return {
+        unread_count: response?.unread_count || 0,
+      };
+    } catch (error) {
+      console.error('Error in getUnreadNotificationCount:', error);
+      // Return default value instead of throwing to prevent UI breaking
+      return {
+        unread_count: 0,
+      };
+    }
   }
 
   /**

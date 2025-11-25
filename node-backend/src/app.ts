@@ -41,6 +41,29 @@ const createApp = (): Express => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // API root endpoint
+  app.get('/api/v1', (req, res) => {
+    res.json({
+      name: 'Amber Best Practice Portal API',
+      version: '1.0.0',
+      status: 'ok',
+      endpoints: {
+        auth: '/api/v1/auth',
+        plants: '/api/v1/plants',
+        categories: '/api/v1/categories',
+        bestPractices: '/api/v1/best-practices',
+        benchmarking: '/api/v1/benchmarking',
+        copyImplement: '/api/v1/copy-implement',
+        questions: '/api/v1/questions',
+        leaderboard: '/api/v1/leaderboard',
+        analytics: '/api/v1/analytics',
+        uploads: '/api/v1/uploads',
+        notifications: '/api/v1/notifications',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // API routes
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/plants', plantsRoutes);

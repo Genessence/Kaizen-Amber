@@ -72,7 +72,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   const [lbDrillOpen, setLbDrillOpen] = useState(false);
   
   // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
-  const { data: unifiedData, isLoading: unifiedLoading } = useUnifiedDashboard(starRatingsFormat);
+  const { data: unifiedData, isLoading: unifiedLoading, error: unifiedError } = useUnifiedDashboard(starRatingsFormat);
   
   // Extract data from unified response
   const overview = unifiedData?.data?.overview;
@@ -174,17 +174,40 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
     return [];
   }, [leaderboardData, leaderboard]);
 
-  // Use API data for plant performance
+  // Use API data for plant performance - merge with all plants to ensure completeness
   const plantData = useMemo(() => {
+    // Create a map of plant performance data by plant name
+    const performanceMap = new Map<string, number>();
+    if (plantPerformanceData && plantPerformanceData.length > 0) {
+      plantPerformanceData.forEach((p: any) => {
+        const plantName = p.plant_name || p.name;
+        const submitted = p.submitted_count || p.submitted || 0;
+        performanceMap.set(plantName, submitted);
+      });
+    }
+
+    // If we have plantsData, merge it with performance data to ensure all plants are included
+    if (plantsData && plantsData.length > 0) {
+      return plantsData.map((plant: any) => {
+        const plantName = plant.name || plant.plant_name;
+        const submitted = performanceMap.get(plantName) || 0;
+        return {
+          name: plantName,
+          submitted: submitted,
+        };
+      });
+    }
+
+    // Fallback to plantPerformanceData if plantsData is not available
     if (plantPerformanceData && plantPerformanceData.length > 0) {
       return plantPerformanceData.map((p: any) => ({
-        name: p.plant_name,
-        submitted: p.submitted_count || p.monthly_count || 0,
+        name: p.plant_name || p.name,
+        submitted: p.submitted_count || p.submitted || 0,
       }));
     }
-    // Fallback to empty array if no data
+
     return [];
-  }, [plantPerformanceData]);
+  }, [plantPerformanceData, plantsData]);
 
   // Use API data for monthly performance (current month)
   const plantMonthlyPerformance = useMemo(() => {
@@ -212,8 +235,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
     return [];
   }, [copySpreadData]);
 
-  // Submission-derived active plants
-  const totalPlantCount = plantsData?.length || plantData.length || 7;
+  // Submission-derived active plants (YTD)
+  // Use plantData length as it now includes all plants merged from plantsData
+  const totalPlantCount = plantData.length > 0 ? plantData.length : (plantsData?.length || 0);
   const activeBySubmission = useMemo(() => plantData.filter((p) => p.submitted > 0), [plantData]);
   const activeBySubmissionCount = activeBySubmission.length;
   const ytdSubmissions = useMemo(() => plantData.reduce((sum, p) => sum + (p.submitted || 0), 0), [plantData]);
@@ -431,7 +455,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             </CardHeader>
             <CardContent className="text-center">
               <div className="text-3xl font-bold text-primary">{activeBySubmissionCount}/{totalPlantCount} plants</div>
-              <p className="text-sm text-muted-foreground">Contributing this month (submission-based)</p>
+              <p className="text-sm text-muted-foreground">With submitted practices (YTD)</p>
               <div className="mt-2">
                 <Badge variant="outline" className="bg-primary/10 text-primary">
                   {totalPlantCount > 0 ? Math.round((activeBySubmissionCount / totalPlantCount) * 100) : 0}% Participation
@@ -1331,21 +1355,35 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           <CardContent>
             {recentPracticesLoading ? (
               <ListSkeleton items={4} />
+            ) : unifiedError ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2 opacity-50" />
+                <p className="text-sm">Failed to load recent practices</p>
+                <p className="text-xs text-muted-foreground mt-1">Please try again later</p>
+              </div>
             ) : recentPractices && recentPractices.length > 0 ? (
               <div className="space-y-4">
-                {recentPractices.map((practice) => {
-                  // Calculate time ago from created_at
-                  const createdDate = practice.created_at ? new Date(practice.created_at) : null;
-                  const timeAgo = createdDate
+                {recentPractices.slice(0, 4).map((practice) => {
+                  // Calculate time ago from submitted_date_iso (preferred) or submitted_date
+                  const submittedDate = practice.submitted_date_iso 
+                    ? new Date(practice.submitted_date_iso) 
+                    : (practice.submitted_date ? new Date(practice.submitted_date) : null);
+                  
+                  const timeAgo = submittedDate
                     ? (() => {
-                        const diffMs = Date.now() - createdDate.getTime();
+                        const diffMs = Date.now() - submittedDate.getTime();
                         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
                         const diffDays = Math.floor(diffHours / 24);
+                        const diffWeeks = Math.floor(diffDays / 7);
+                        const diffMonths = Math.floor(diffDays / 30);
+                        
+                        if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
+                        if (diffWeeks > 0) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
                         if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
                         if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
                         return 'Just now';
                       })()
-                    : 'Recently';
+                    : practice.submitted_date || 'Recently';
                   
                   return (
                     <div 
@@ -1366,6 +1404,14 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        {practice.question_count > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="bg-primary/10 text-primary text-xs"
+                          >
+                            {practice.question_count} Q&A
+                          </Badge>
+                        )}
                         <Button 
                           size="sm" 
                           variant="outline"
@@ -1374,7 +1420,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                             navigate(`/practices/${practice.id}`);
                           }}
                         >
-                          Review
+                          View
                         </Button>
                       </div>
                     </div>
@@ -1394,9 +1440,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
       <AlertDialog open={activePlantsDialogOpen} onOpenChange={setActivePlantsDialogOpen}>
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Active Plants Status</AlertDialogTitle>
+            <AlertDialogTitle>Active Plants Status (YTD)</AlertDialogTitle>
             <AlertDialogDescription>
-              View which plants are active (have submitted best practices) and which are inactive this month.
+              View which plants are active (have submitted best practices YTD) and which are inactive (no submissions YTD).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
@@ -1414,7 +1460,7 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   >
                     <span className="font-medium text-sm">{plant.name}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground">{plant.submitted} submissions</span>
+                      <span className="text-xs text-muted-foreground">{plant.submitted} submission{plant.submitted !== 1 ? 's' : ''} (YTD)</span>
                       <Badge variant="outline" className="bg-success/10 text-success border-success">
                         Active
                       </Badge>
@@ -1425,32 +1471,37 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             </div>
 
             {/* Inactive Plants */}
-            {plantData.filter((p) => p.submitted === 0).length > 0 && (
-              <div>
-                <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  Inactive Plants ({plantData.filter((p) => p.submitted === 0).length})
-                </h4>
-                <div className="space-y-2">
-                  {plantData
-                    .filter((p) => p.submitted === 0)
-                    .map((plant) => (
+            {(() => {
+              const inactivePlants = plantData.filter((p) => p.submitted === 0);
+              return inactivePlants.length > 0 ? (
+                <div>
+                  <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    Inactive Plants ({inactivePlants.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {inactivePlants.map((plant) => (
                       <div
                         key={plant.name}
                         className="flex items-center justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-colors"
                       >
                         <span className="font-medium text-sm">{plant.name}</span>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">0 submissions</span>
+                          <span className="text-xs text-muted-foreground">0 submissions (YTD)</span>
                           <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive">
                             Inactive
                           </Badge>
                         </div>
                       </div>
                     ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  All plants have submitted practices this year.
+                </div>
+              );
+            })()}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Close</AlertDialogCancel>

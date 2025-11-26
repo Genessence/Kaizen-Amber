@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateBestPractice } from "@/hooks/useBestPractices";
@@ -62,6 +63,7 @@ interface BestPracticeFormProps {
 
 const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracticeFormProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(""); // Now stores category ID
@@ -72,6 +74,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
   const [implementationText, setImplementationText] = useState("");
   const [investmentText, setInvestmentText] = useState("");
   const [implementationArea, setImplementationArea] = useState("");
+  const [savingsAmount, setSavingsAmount] = useState<string>("");
+  const [savingsCurrency, setSavingsCurrency] = useState<'lakhs' | 'crores'>('lakhs');
+  const [savingsError, setSavingsError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [beforeImage, setBeforeImage] = useState<File | null>(null);
@@ -127,6 +132,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       setImplementationText("");
       setInvestmentText("");
       setImplementationArea("");
+      setSavingsAmount("");
+      setSavingsCurrency("lakhs");
+      setSavingsError("");
     } else {
       // Clear all fields when preFillData is null (normal add-practice flow)
       setTitle("");
@@ -138,6 +146,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       setImplementationText("");
       setInvestmentText("");
       setImplementationArea("");
+      setSavingsAmount("");
+      setSavingsCurrency("lakhs");
+      setSavingsError("");
     }
   }, [preFillData, categoriesData]);
   
@@ -146,6 +157,8 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
     if (!category.trim()) return "Please select a Category.";
     if (!problemStatement.trim()) return "Please enter Problem Statement.";
     if (!solution.trim()) return "Please enter Solution Description.";
+    if (!savingsAmount.trim()) return "Please enter Savings Amount.";
+    if (savingsError) return savingsError; // Check for validation errors
     
     // Documents are required if selected
     if (supportingDocs.length > 0) {
@@ -205,8 +218,11 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
         metrics: metricsText || undefined,
         implementation: implementationText || undefined,
         investment: investmentText || undefined,
-        area_implemented: implementationArea || undefined,
-        status: 'draft' as const, // Save as draft
+          area_implemented: implementationArea || undefined,
+          savings_amount: parseInt(savingsAmount, 10),
+          savings_currency: savingsCurrency,
+          savings_period: 'monthly' as const,
+          status: 'draft' as const, // Save as draft
         // Don't send submitted_date - backend sets it to null for drafts
       };
 
@@ -261,6 +277,13 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       }
 
       toast.success("Draft saved successfully!");
+      
+      // Invalidate queries to ensure dashboard shows updated data
+      await queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      await queryClient.invalidateQueries({ queryKey: ['best-practices'] });
+      
       // Navigate back to dashboard after saving draft
       navigate("/dashboard");
     } catch (error) {
@@ -337,6 +360,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
           implementation: implementationText || undefined,
           investment: investmentText || undefined,
           area_implemented: implementationArea || undefined,
+          savings_amount: parseInt(savingsAmount, 10),
+          savings_currency: savingsCurrency,
+          savings_period: 'monthly' as const,
           status: 'submitted' as const,
           // Don't send submitted_date - backend sets it automatically when status is 'submitted'
         };
@@ -465,6 +491,12 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
         mode,
       };
       onSubmit?.(payload);
+
+      // Invalidate queries to ensure dashboard shows updated data
+      await queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      await queryClient.invalidateQueries({ queryKey: ['best-practices'] });
 
       // Close form only if everything succeeded
       navigate("/dashboard");
@@ -815,6 +847,66 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
           />
         </div>
 
+        {/* Savings Information */}
+        <div className="space-y-4">
+          <Label htmlFor="savingsAmount" className="text-base font-semibold">Monthly Savings Information *</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Savings Amount Input */}
+            <div className="space-y-2">
+              <Label htmlFor="savingsAmount" className="text-sm">Monthly Savings Amount *</Label>
+              <Input
+                id="savingsAmount"
+                type="text"
+                placeholder="Enter amount (integers only)"
+                className={`w-full h-11 transition-smooth focus:ring-2 focus:ring-primary/20 ${savingsError ? 'border-destructive' : ''}`}
+                value={savingsAmount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Allow empty string or only digits
+                  if (value === '' || /^\d+$/.test(value)) {
+                    setSavingsAmount(value);
+                    setSavingsError("");
+                  } else {
+                    setSavingsError("Only integer values are allowed");
+                  }
+                }}
+              />
+              {savingsError && (
+                <p className="text-xs text-destructive">{savingsError}</p>
+              )}
+            </div>
+
+            {/* Currency Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="savingsCurrency" className="text-sm">Currency *</Label>
+              <Select value={savingsCurrency} onValueChange={(value: 'lakhs' | 'crores') => setSavingsCurrency(value)}>
+                <SelectTrigger className="h-11 transition-smooth focus:ring-2 focus:ring-primary/20">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lakhs">
+                    <div className="flex items-center space-x-2">
+                      <IndianRupee className="h-4 w-4" />
+                      <span>Lakhs</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="crores">
+                    <div className="flex items-center space-x-2">
+                      <IndianRupee className="h-4 w-4" />
+                      <span>Crores</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Helpful explanation */}
+          <p className="text-xs text-muted-foreground">
+            Enter the estimated monthly savings from this best practice. Amount must be a whole number (no decimals).
+          </p>
+        </div>
+
         {/* Implementation Details */}
           <div className="space-y-2">
             <Label htmlFor="implementation">Implementation Timeline & Resources</Label>
@@ -846,9 +938,9 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
                   <div className="text-center">
                     <p className="text-sm font-medium">Upload supporting documents</p>
                     <p className="text-xs text-muted-foreground">Process charts, procedures, training materials (PDF, DOC, DOCX, PPT, PPTX)</p>
-                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 font-medium">
-                      ⚠️ Documents are required if selected - submission will fail if upload fails
-                    </p>
+                    {/* <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 font-medium">
+                      
+                    </p> */}
                   </div>
                   <input
                     ref={docsInputRef}

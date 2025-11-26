@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Clock,
   Shield,
-  Loader2
+  Loader2,
+  IndianRupee
 } from "lucide-react";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 import { useBestPractice } from "@/hooks/useBestPractices";
@@ -147,6 +148,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     investment: (apiPractice || propPractice).investment || "",
     questions: (apiPractice || propPractice).question_count || (apiPractice || propPractice).questions || 0,
     savings: (apiPractice || propPractice).savings,
+    savingsAmount: (apiPractice || propPractice).savings_amount,
+    savingsCurrency: (apiPractice || propPractice).savings_currency || 'lakhs',
+    savingsPeriod: (apiPractice || propPractice).savings_period || 'monthly',
     areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented || "",
     beforeImage: (apiPractice || propPractice).beforeImage,
     afterImage: (apiPractice || propPractice).afterImage,
@@ -584,6 +588,29 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div>
               <h4 className="font-medium mb-2">Investment in the Best Practice</h4>
               <p className="text-muted-foreground">{practice.investment}</p>
+            </div>
+          )}
+
+          {/* Savings Information */}
+          {practice.savingsAmount && (
+            <div>
+              <h4 className="font-medium mb-2 flex items-center gap-2">
+                <IndianRupee className="h-4 w-4 text-primary" />
+                Monthly Savings
+              </h4>
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-primary">
+                    ₹{practice.savingsAmount}
+                  </span>
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary">
+                    {practice.savingsCurrency === 'crores' ? 'Crores' : 'Lakhs'}
+                  </Badge>
+                  <Badge variant="outline" className="bg-secondary/10">
+                    {practice.savingsPeriod || 'Monthly'}
+                  </Badge>
+                </div>
+              </div>
             </div>
           )}
 

@@ -4,22 +4,58 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsService {
   /**
-   * Calculate star rating based on savings
-   * 0-5 stars based on savings amount
+   * Calculate star rating based on BOTH monthly and YTD savings thresholds
+   * According to documentation:
+   * - 5 stars: YTD > 200L and Monthly > 16L
+   * - 4 stars: YTD 150-200L and Monthly 12-16L
+   * - 3 stars: YTD 100-150L and Monthly 8-12L
+   * - 2 stars: YTD 50-100L and Monthly 4-8L
+   * - 1 star: YTD > 50L and Monthly > 4L
+   * - 0 stars: Otherwise
+   * 
+   * @param monthlySavings - Monthly savings amount (in lakhs)
+   * @param ytdSavings - Year-to-date savings amount (in lakhs)
+   * @param currency - Currency format ('lakhs' or 'crores')
+   * @returns Star rating (0-5)
    */
-  calculateStarRating(savings: Prisma.Decimal | null, currency: string): number {
-    if (!savings) return 0;
+  calculateStarRating(
+    monthlySavings: Prisma.Decimal | null,
+    ytdSavings: Prisma.Decimal | null,
+    currency: string = 'lakhs'
+  ): number {
+    if (!monthlySavings || !ytdSavings) return 0;
 
-    let amount = Number(savings);
+    let monthly = Number(monthlySavings);
+    let ytd = Number(ytdSavings);
+    
+    // Convert to lakhs if in crores
     if (currency === 'crores') {
-      amount = amount * 100; // Convert to lakhs
+      monthly = monthly * 100;
+      ytd = ytd * 100;
     }
 
-    if (amount >= 50) return 5;
-    if (amount >= 25) return 4;
-    if (amount >= 10) return 3;
-    if (amount >= 5) return 2;
-    if (amount >= 1) return 1;
+    // Both thresholds must be met for each star level
+    // 5 stars: YTD > 200L and Monthly > 16L
+    if (ytd > 200 && monthly > 16) {
+      return 5;
+    }
+    // 4 stars: YTD 150-200L and Monthly 12-16L
+    if (ytd >= 150 && ytd <= 200 && monthly >= 12 && monthly <= 16) {
+      return 4;
+    }
+    // 3 stars: YTD 100-150L and Monthly 8-12L
+    if (ytd >= 100 && ytd < 150 && monthly >= 8 && monthly < 12) {
+      return 3;
+    }
+    // 2 stars: YTD 50-100L and Monthly 4-8L
+    if (ytd >= 50 && ytd < 100 && monthly >= 4 && monthly < 8) {
+      return 2;
+    }
+    // 1 star: YTD > 50L and Monthly > 4L
+    if (ytd > 50 && monthly > 4) {
+      return 1;
+    }
+    
     return 0;
   }
 
@@ -410,7 +446,8 @@ export class AnalyticsService {
         const monthlyData = monthlySavingsData.find((ms) => ms.plantId === plant.id);
         const monthlySavings = monthlyData?.totalSavings || new Prisma.Decimal(0);
         const ytdSavings = ytdMap.get(plant.id) || new Prisma.Decimal(0);
-        const stars = this.calculateStarRating(monthlySavings, currency);
+        // Calculate stars using BOTH monthly and YTD thresholds
+        const stars = this.calculateStarRating(monthlySavings, ytdSavings, currency);
 
         return {
           plant_id: plant.id,

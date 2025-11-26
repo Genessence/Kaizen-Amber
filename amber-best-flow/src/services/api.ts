@@ -1036,7 +1036,22 @@ class APIService {
     if (year) params.append('year', year.toString());
     if (month) params.append('month', month.toString());
 
-    return this.request<APIResponse<PlantSavings[]>>('/analytics/cost-savings?' + params.toString());
+    const response = await this.request<APIResponse<any[]>>('/analytics/cost-savings?' + params.toString());
+    
+    // Transform backend response to match PlantSavings type
+    return {
+      success: response.success,
+      data: response.data.map((item: any) => ({
+        plant_id: item.plant_id,
+        plant_name: item.plant_name,
+        short_name: item.short_name,
+        last_month: item.last_month || '0',
+        current_month: item.current_month || '0',
+        ytd_till_last_month: item.ytd_till_last_month || '0',
+        ytd_total: item.ytd_total || '0',
+        percent_change: item.percent_change || 0,
+      })),
+    };
   }
 
   /**
@@ -1046,7 +1061,22 @@ class APIService {
     const params = new URLSearchParams();
     params.append('currency', currency);
 
-    return this.request<APIResponse<PlantSavings[]>>('/analytics/cost-analysis?' + params.toString());
+    const response = await this.request<APIResponse<any[]>>('/analytics/cost-analysis?' + params.toString());
+    
+    // Transform backend response to match PlantSavings type
+    return {
+      success: response.success,
+      data: response.data.map((item: any) => ({
+        plant_id: item.plant_id,
+        plant_name: item.plant_name,
+        short_name: item.short_name,
+        last_month: item.last_month || '0',
+        current_month: item.current_month || '0',
+        ytd_till_last_month: item.ytd_till_last_month || '0',
+        ytd_total: item.ytd_total || '0',
+        percent_change: item.percent_change || 0,
+      })),
+    };
   }
 
   /**

@@ -25,41 +25,32 @@ import {
 import { Pie, PieChart, Cell, BarChart, XAxis, YAxis, CartesianGrid, Bar, Label, LabelList } from "recharts";
 import { formatCurrency } from "@/lib/utils";
 import { useBestPractices } from "@/hooks/useBestPractices";
+import { usePlantPerformance, useCostSavings, useCostAnalysis, usePlantMonthlyBreakdown } from "@/hooks/useAnalytics";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AnalyticsProps {
   userRole: "plant" | "hq";
 }
 
-const plantStats = [
-  { name: "Greater Noida (Ecotech 1)", submitted: 26 },
-  { name: "Kanchipuram", submitted: 21 },
-  { name: "Rajpura", submitted: 24 },
-  { name: "Shahjahanpur", submitted: 19 },
-  { name: "Supa", submitted: 17 },
-  { name: "Ranjangaon", submitted: 22 },
-  { name: "Ponneri", submitted: 18 },
-];
-
-const plantShortLabel: Record<string, string> = {
-  "Greater Noida (Ecotech 1)": "Greater Noida",
-  "Kanchipuram": "Kanchipuram",
-  "Rajpura": "Rajpura",
-  "Shahjahanpur": "Shahjahanpur",
-  "Supa": "Supa",
-  "Ranjangaon": "Ranjangaon",
-  "Ponneri": "Ponneri",
+// Helper function to get short name from full plant name
+const getPlantShortName = (fullName: string): string => {
+  const shortNameMap: Record<string, string> = {
+    "Greater Noida (Ecotech 1)": "Greater Noida",
+    "Kanchipuram": "Kanchipuram",
+    "Rajpura": "Rajpura",
+    "Shahjahanpur": "Shahjahanpur",
+    "Supa": "Supa",
+    "Ranjangaon": "Ranjangaon",
+    "Ponneri": "Ponneri",
+  };
+  return shortNameMap[fullName] || fullName;
 };
-
-const total = plantStats.reduce(
-  (acc, p) => ({
-    submitted: acc.submitted + (p.submitted || 0),
-  }),
-  { submitted: 0 }
-);
 
 const Analytics = ({ userRole }: AnalyticsProps) => {
   const navigate = useNavigate();
-const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "Greater Noida (Ecotech 1)") : plantStats;
+  const { user } = useAuth();
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
 
   // Toggle state for Yearly Analytics - only for HQ admin
   const [yearlyViewMode, setYearlyViewMode] = useState<"yearly" | "currentMonth">("yearly");
@@ -67,23 +58,80 @@ const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "G
   const [yearlyCostSavingsViewMode, setYearlyCostSavingsViewMode] = useState<"yearly" | "currentMonth">("yearly");
   const [yearlyCostSavingsFormat, setYearlyCostSavingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
 
-  // Yearly plant-wise data (total BPs submitted by each plant for the year)
-  const yearlyPlantData = plantStats.map(plant => ({
-    plant: plantShortLabel[plant.name] || plant.name,
-    fullName: plant.name,
-    submitted: plant.submitted
-  }));
+  // Fetch plant performance data
+  const { data: yearlyPlantPerformance, isLoading: isLoadingYearly } = usePlantPerformance('yearly', currentYear);
+  const { data: monthlyPlantPerformance, isLoading: isLoadingMonthly } = usePlantPerformance('monthly', currentYear, currentMonth);
 
-  // Current month plant-wise data (BPs submitted by each plant in current month)
-  const currentMonthPlantData = [
-    { plant: plantShortLabel["Greater Noida (Ecotech 1)"] || "Greater Noida", fullName: "Greater Noida (Ecotech 1)", submitted: 3 },
-    { plant: plantShortLabel["Kanchipuram"] || "Kanchipuram", fullName: "Kanchipuram", submitted: 2 },
-    { plant: plantShortLabel["Rajpura"] || "Rajpura", fullName: "Rajpura", submitted: 2 },
-    { plant: plantShortLabel["Shahjahanpur"] || "Shahjahanpur", fullName: "Shahjahanpur", submitted: 1 },
-    { plant: plantShortLabel["Supa"] || "Supa", fullName: "Supa", submitted: 1 },
-    { plant: plantShortLabel["Ranjangaon"] || "Ranjangaon", fullName: "Ranjangaon", submitted: 2 },
-    { plant: plantShortLabel["Ponneri"] || "Ponneri", fullName: "Ponneri", submitted: 1 },
-  ];
+  // Fetch cost savings data
+  const { data: yearlyCostSavingsData, isLoading: isLoadingYearlySavings } = useCostSavings('yearly', yearlyCostSavingsFormat, currentYear);
+  const { data: monthlyCostSavingsData, isLoading: isLoadingMonthlySavings } = useCostSavings('monthly', yearlyCostSavingsFormat, currentYear, currentMonth);
+
+  // Transform plant performance data for charts
+  const yearlyPlantData = useMemo(() => {
+    if (!yearlyPlantPerformance) return [];
+    return yearlyPlantPerformance.map(plant => ({
+      plant: getPlantShortName(plant.plant_name),
+      fullName: plant.plant_name,
+      submitted: plant.submitted
+    }));
+  }, [yearlyPlantPerformance]);
+
+  const currentMonthPlantData = useMemo(() => {
+    if (!monthlyPlantPerformance) return [];
+    return monthlyPlantPerformance.map(plant => ({
+      plant: getPlantShortName(plant.plant_name),
+      fullName: plant.plant_name,
+      submitted: plant.submitted
+    }));
+  }, [monthlyPlantPerformance]);
+
+  // Transform cost savings data for charts
+  const yearlyPlantSavings = useMemo(() => {
+    if (!yearlyCostSavingsData?.data) return [];
+    return yearlyCostSavingsData.data.map(plant => ({
+      plant: plant.plant_name,
+      savings: parseFloat(plant.ytd_total || '0')
+    }));
+  }, [yearlyCostSavingsData]);
+
+  const currentMonthPlantSavings = useMemo(() => {
+    if (!monthlyCostSavingsData?.data) return [];
+    return monthlyCostSavingsData.data.map(plant => ({
+      plant: plant.plant_name,
+      savings: parseFloat(plant.current_month || '0')
+    }));
+  }, [monthlyCostSavingsData]);
+
+  // Filter plants based on user role
+  const plantsToShow = useMemo(() => {
+    const allPlants = yearlyPlantData;
+    if (userRole === "plant" && user?.plant_name) {
+      return allPlants.filter(p => p.fullName === user.plant_name);
+    }
+    return allPlants;
+  }, [yearlyPlantData, userRole, user?.plant_name]);
+
+  // Show loading state
+  if ((yearlyViewMode === "yearly" && isLoadingYearly) || (yearlyViewMode === "currentMonth" && isLoadingMonthly)) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center"><BarChart3 className="h-6 w-6 mr-2 text-primary" /> Component Division Overview</h1>
+            <p className="text-muted-foreground mt-1">
+              {userRole === "plant" ? "Greater Noida (Ecotech 1) performance" : "Company-wide metrics and per-plant breakdown"}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => navigate("/dashboard")}>Back</Button>
+        </div>
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">Loading analytics data...</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -127,16 +175,20 @@ const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "G
           </div>
         </CardHeader>
         <CardContent>
-          <ChartContainer
-            config={{
-              submitted: { label: "Submitted", color: "hsl(var(--primary))" },
-            }}
-            className="h-[300px] w-full"
-          >
-            <BarChart 
-              data={yearlyViewMode === "yearly" ? yearlyPlantData : currentMonthPlantData}
-              margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
+          {(yearlyViewMode === "yearly" && yearlyPlantData.length === 0) || 
+           (yearlyViewMode === "currentMonth" && currentMonthPlantData.length === 0) ? (
+            <div className="text-center py-8 text-muted-foreground">No data available.</div>
+          ) : (
+            <ChartContainer
+              config={{
+                submitted: { label: "Submitted", color: "hsl(var(--primary))" },
+              }}
+              className="h-[300px] w-full"
             >
+              <BarChart 
+                data={yearlyViewMode === "yearly" ? yearlyPlantData : currentMonthPlantData}
+                margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
+              >
               <defs>
                 <linearGradient id="gradientSubmitted" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
@@ -172,8 +224,9 @@ const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "G
               <Bar dataKey="submitted" fill="url(#gradientSubmitted)" radius={[8, 8, 0, 0]}>
                 <LabelList dataKey="submitted" position="top" className="text-xs fill-current" />
               </Bar>
-            </BarChart>
-          </ChartContainer>
+              </BarChart>
+            </ChartContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -225,30 +278,19 @@ const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "G
         </CardHeader>
         <CardContent>
           {(() => {
-            // Plant-wise YTD savings (in ₹ lakhs) - demo values for all plants
-            const yearlyPlantSavings = [
-              { plant: "Greater Noida (Ecotech 1)", savings: 196 },
-              { plant: "Kanchipuram", savings: 148 },
-              { plant: "Rajpura", savings: 132 },
-              { plant: "Shahjahanpur", savings: 104 },
-              { plant: "Supa", savings: 96 },
-              { plant: "Ranjangaon", savings: 118 },
-              { plant: "Ponneri", savings: 107 },
-            ];
-            
-            // Current month plant-wise savings
-            const currentMonthPlantSavings = [
-              { plant: "Greater Noida (Ecotech 1)", savings: 18.5 },
-              { plant: "Kanchipuram", savings: 14.2 },
-              { plant: "Rajpura", savings: 12.8 },
-              { plant: "Shahjahanpur", savings: 10.1 },
-              { plant: "Supa", savings: 9.2 },
-              { plant: "Ranjangaon", savings: 11.5 },
-              { plant: "Ponneri", savings: 10.3 },
-            ];
-            
             const plantSavings = yearlyCostSavingsViewMode === "yearly" ? yearlyPlantSavings : currentMonthPlantSavings;
             const total = plantSavings.reduce((a, b) => a + b.savings, 0);
+            
+            // Show loading state
+            if ((yearlyCostSavingsViewMode === "yearly" && isLoadingYearlySavings) || 
+                (yearlyCostSavingsViewMode === "currentMonth" && isLoadingMonthlySavings)) {
+              return <div className="text-center py-8 text-muted-foreground">Loading savings data...</div>;
+            }
+            
+            // Show empty state
+            if (plantSavings.length === 0) {
+              return <div className="text-center py-8 text-muted-foreground">No savings data available.</div>;
+            }
             return (
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -260,7 +302,7 @@ const plantsToShow = userRole === "plant" ? plantStats.filter(p => p.name === "G
                   className="h-[300px] w-full"
                 >
                   <BarChart data={plantSavings.map(p => ({ 
-                    plant: plantShortLabel[p.plant] ?? p.plant,
+                    plant: getPlantShortName(p.plant),
                     fullName: p.plant,
                     savings: p.savings 
                   }))}>
@@ -347,23 +389,13 @@ export default Analytics;
 type Division = "Component";
 
 type PlantCost = {
+  id: string;
   name: string;
   division: Division;
   lastMonth: number; // savings last month (in lakhs ₹)
   currentMonth: number; // savings current month (in lakhs ₹)
   ytdTillLastMonth: number; // savings YTD till last month (in lakhs ₹)
 };
-
-const plantCostData: PlantCost[] = [
-  { name: "Greater Noida (Ecotech 1)", division: "Component", lastMonth: 14.5, currentMonth: 15.8, ytdTillLastMonth: 92.3 },
-  { name: "Kanchipuram", division: "Component", lastMonth: 10.2, currentMonth: 11.0, ytdTillLastMonth: 68.7 },
-  { name: "Rajpura", division: "Component", lastMonth: 12.8, currentMonth: 13.6, ytdTillLastMonth: 81.4 },
-  { name: "Shahjahanpur", division: "Component", lastMonth: 8.4, currentMonth: 9.1, ytdTillLastMonth: 56.2 },
-  { name: "Supa", division: "Component", lastMonth: 9.9, currentMonth: 10.5, ytdTillLastMonth: 60.8 },
-  { name: "Ranjangaon", division: "Component", lastMonth: 11.6, currentMonth: 12.4, ytdTillLastMonth: 74.1 },
-  { name: "Ponneri", division: "Component", lastMonth: 10.8, currentMonth: 11.6, ytdTillLastMonth: 69.5 },
-];
-
 type PlantMonthlyBreakdown = {
   month: string;
   totalSavings: number;
@@ -479,18 +511,43 @@ const pctChange = (current: number, last: number) => (last === 0 ? 0 : ((current
 
 const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [costAnalysisFormat, setCostAnalysisFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  
+  // Fetch cost analysis data from API
+  const { data: costAnalysisData, isLoading: isLoadingCostAnalysis } = useCostAnalysis(costAnalysisFormat);
   
   // Fetch practices from API
   const { data: practicesData } = useBestPractices({ limit: 1000 });
-  const practices = practicesData?.data || [];
+  const practices: any[] = (practicesData as any)?.data || [];
+  
+  // Transform cost analysis data to PlantCost format
+  const plantCostData = useMemo<PlantCost[]>(() => {
+    const data = (costAnalysisData as any)?.data;
+    if (!data || !Array.isArray(data)) return [];
+    
+    // The API returns PlantSavings with last_month, current_month, ytd_till_last_month
+    return data.map((plant: any) => ({
+      id: plant.plant_id,
+      name: plant.plant_name,
+      division: "Component" as Division,
+      lastMonth: parseFloat(plant.last_month || '0'),
+      currentMonth: parseFloat(plant.current_month || '0'),
+      ytdTillLastMonth: parseFloat(plant.ytd_till_last_month || '0')
+    }));
+  }, [costAnalysisData]);
   
   // Generate plant monthly savings from API data
   const plantMonthlySavings = useMemo(() => generatePlantMonthlySavings(practices), [practices]);
   const defaultMonthlyBreakdown = useMemo(() => getDefaultMonthlyBreakdown(practices), [practices]);
   
   // Filter by role (plant users see only their plant's savings)
-  const visible = userRole === "plant" ? plantCostData.filter(p => p.name === "Greater Noida (Ecotech 1)") : plantCostData;
+  const visible = useMemo(() => {
+    if (userRole === "plant" && user?.plant_name) {
+      return plantCostData.filter(p => p.name === user.plant_name);
+    }
+    return plantCostData;
+  }, [plantCostData, userRole, user?.plant_name]);
 
   // Aggregate component division totals
   const componentTotals = visible.reduce(
@@ -517,6 +574,25 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
   const [selectedPlant, setSelectedPlant] = useState<PlantCost | null>(null);
   const [practicesDialogOpen, setPracticesDialogOpen] = useState(false);
   const [selectedMonthPractices, setSelectedMonthPractices] = useState<{ month: string; practices: { title: string; savings: number; benchmarked?: boolean }[] } | null>(null);
+  
+  // State for donut chart active indices (must be at top level for Rules of Hooks)
+  const [currentChartActiveIndex, setCurrentChartActiveIndex] = useState<number | null>(null);
+  const [lastChartActiveIndex, setLastChartActiveIndex] = useState<number | null>(null);
+  const [yearlyChartActiveIndex, setYearlyChartActiveIndex] = useState<number | null>(null);
+
+  // Get plant ID from cost analysis data for selected plant
+  const selectedPlantId = useMemo(() => {
+    if (!selectedPlant || !costAnalysisData?.data) return undefined;
+    const plantData = costAnalysisData.data.find(p => p.plant_name === selectedPlant.name);
+    return plantData?.plant_id;
+  }, [selectedPlant, costAnalysisData]);
+
+  // Fetch monthly breakdown for selected plant
+  const { data: monthlyBreakdownData, isLoading: isLoadingMonthlyBreakdown } = usePlantMonthlyBreakdown(
+    selectedPlantId,
+    currentYear,
+    costAnalysisFormat
+  );
 
   const selectedPlantBreakdown = useMemo<PlantMonthlyBreakdown[]>(() => {
     const fillMissingMonths = (entries: PlantMonthlyBreakdown[]): PlantMonthlyBreakdown[] => {
@@ -537,7 +613,21 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       return fillMissingMonths(defaultMonthlyBreakdown);
     }
 
-    // Get plant entries, or create default from first practice of that plant
+    // Use API data if available
+    if (monthlyBreakdownData && monthlyBreakdownData.length > 0) {
+      const transformed = monthlyBreakdownData.map(item => ({
+        month: item.month,
+        totalSavings: parseFloat(item.total_savings || '0'),
+        practices: (item.practices || []).map(p => ({
+          title: p.title,
+          savings: parseFloat(p.savings || '0'),
+          benchmarked: p.benchmarked || false
+        }))
+      }));
+      return fillMissingMonths(transformed);
+    }
+
+    // Fallback to generated data from practices
     let plantEntries = plantMonthlySavings[selectedPlant.name];
     
     // If plant has no practices, find first practice from that plant in practices
@@ -563,7 +653,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
     }
     
     return fillMissingMonths(plantEntries);
-  }, [selectedPlant, plantMonthlySavings, defaultMonthlyBreakdown, practices]);
+  }, [selectedPlant, plantMonthlySavings, defaultMonthlyBreakdown, practices, monthlyBreakdownData]);
 
   const handlePlantRowClick = (plant: PlantCost) => {
     setSelectedPlant(plant);
@@ -576,6 +666,34 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       handlePlantRowClick(plant);
     }
   };
+
+  // Show loading state
+  if (isLoadingCostAnalysis) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle>Cost Analysis (Savings)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">Loading cost analysis data...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show empty state
+  if (visible.length === 0) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle>Cost Analysis (Savings)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">No cost analysis data available.</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-card">
@@ -603,7 +721,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Plant-wise Donut Charts - Premium Modern Design */}
-        {userRole === "hq" && (() => {
+        {(() => {
           // Premium soft muted color palette - gentle pastels that harmonize
           const COLOR_PALETTE = [
             { 
@@ -650,24 +768,30 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
             }
           ];
 
-          const currentMonthData = plantCostData.map((p, idx) => ({
-            name: plantShortLabel[p.name] ?? p.name,
+          // For plant users, show only their plant's data
+          // For HQ admins, show all plants
+          const plantsForCharts = userRole === "plant" && user?.plant_name 
+            ? visible.filter(p => p.name === user.plant_name)
+            : visible;
+
+          const currentMonthData = plantsForCharts.map((p, idx) => ({
+            name: getPlantShortName(p.name),
             fullName: p.name,
             value: p.currentMonth,
             colorIndex: idx % COLOR_PALETTE.length,
             color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
           }));
 
-          const lastMonthData = plantCostData.map((p, idx) => ({
-            name: plantShortLabel[p.name] ?? p.name,
+          const lastMonthData = plantsForCharts.map((p, idx) => ({
+            name: getPlantShortName(p.name),
             fullName: p.name,
             value: p.lastMonth,
             colorIndex: idx % COLOR_PALETTE.length,
             color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
           }));
 
-          const yearlyData = plantCostData.map((p, idx) => ({
-            name: plantShortLabel[p.name] ?? p.name,
+          const yearlyData = plantsForCharts.map((p, idx) => ({
+            name: getPlantShortName(p.name),
             fullName: p.name,
             value: p.ytdTillLastMonth,
             colorIndex: idx % COLOR_PALETTE.length,
@@ -683,9 +807,10 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
             data: typeof currentMonthData, 
             total: number, 
             title: string, 
-            chartId: string
+            chartId: string,
+            activeIndex: number | null,
+            setActiveIndex: (index: number | null) => void
           ) => {
-            const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
             return (
               <div className="relative w-full">
@@ -886,60 +1011,71 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
             );
           };
 
-          // Get unique plants with their colors for the shared legend
-          const uniquePlants = currentMonthData.map((entry, index) => ({
-            name: entry.fullName || entry.name,
-            shortName: entry.name,
-            color: entry.color
-          }));
+          // Get unique plants with their colors for the shared legend (HQ only)
+          const uniquePlants = userRole === "hq" 
+            ? currentMonthData.map((entry, index) => ({
+                name: entry.fullName || entry.name,
+                shortName: entry.name,
+                color: entry.color
+              }))
+            : [];
+
+          // For plant users, show only Current Month and YTD charts (as per documentation)
+          // For HQ admins, show all three charts (Current Month, Last Month, YTD)
+          const showLastMonthChart = userRole === "hq";
 
           return (
             <div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className={`grid grid-cols-1 ${showLastMonthChart ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
                 <div>
                   <h3 className="text-lg font-semibold mb-4 text-center">Current Month Savings</h3>
-                  {renderDonutChart(currentMonthData, currentMonthTotal, "Current Month", "current")}
+                  {renderDonutChart(currentMonthData, currentMonthTotal, "Current Month", "current", currentChartActiveIndex, setCurrentChartActiveIndex)}
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold mb-4 text-center">Last Month Savings</h3>
-                  {renderDonutChart(lastMonthData, lastMonthTotal, "Last Month", "last")}
-                </div>
+                {showLastMonthChart && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 text-center">Last Month Savings</h3>
+                    {renderDonutChart(lastMonthData, lastMonthTotal, "Last Month", "last", lastChartActiveIndex, setLastChartActiveIndex)}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-semibold mb-4 text-center">Yearly Savings (YTD)</h3>
-                  {renderDonutChart(yearlyData, yearlyTotal, "Yearly (YTD)", "yearly")}
+                  {renderDonutChart(yearlyData, yearlyTotal, "Yearly (YTD)", "yearly", yearlyChartActiveIndex, setYearlyChartActiveIndex)}
                 </div>
               </div>
               
               {/* Single shared legend - horizontal straight line, shown once with percentages */}
-              <div className="mt-8 flex justify-center">
-                <div className="bg-muted/30 rounded-lg p-5 border border-border/50">
-                  <div className="flex flex-wrap justify-center items-center gap-4">
-                    {uniquePlants.map((plant, index) => {
-                      // Calculate percentage from current month data
-                      const plantData = currentMonthData.find(p => (p.fullName || p.name) === plant.name);
-                      const percent = plantData ? ((plantData.value / currentMonthTotal) * 100).toFixed(1) : '0.0';
-                      
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center gap-2.5 px-4 py-2 rounded-lg hover:bg-background transition-colors"
-                        >
+              {/* Only show legend for HQ admins (multiple plants), plant users see single plant */}
+              {userRole === "hq" && (
+                <div className="mt-8 flex justify-center">
+                  <div className="bg-muted/30 rounded-lg p-5 border border-border/50">
+                    <div className="flex flex-wrap justify-center items-center gap-4">
+                      {uniquePlants.map((plant, index) => {
+                        // Calculate percentage from current month data
+                        const plantData = currentMonthData.find(p => (p.fullName || p.name) === plant.name);
+                        const percent = plantData ? ((plantData.value / currentMonthTotal) * 100).toFixed(1) : '0.0';
+                        
+                        return (
                           <div
-                            className="w-3.5 h-3.5 rounded-full flex-shrink-0 shadow-sm border border-border/30"
-                            style={{ backgroundColor: plant.color.base }}
-                          />
-                          <span className="text-sm font-medium text-foreground whitespace-nowrap">
-                            {plant.shortName}
-                          </span>
-                          <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                            ({percent}%)
-                          </span>
-                        </div>
-                      );
-                    })}
+                            key={index}
+                            className="flex items-center gap-2.5 px-4 py-2 rounded-lg hover:bg-background transition-colors"
+                          >
+                            <div
+                              className="w-3.5 h-3.5 rounded-full flex-shrink-0 shadow-sm border border-border/30"
+                              style={{ backgroundColor: plant.color.base }}
+                            />
+                            <span className="text-sm font-medium text-foreground whitespace-nowrap">
+                              {plant.shortName}
+                            </span>
+                            <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
+                              ({percent}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         })()}

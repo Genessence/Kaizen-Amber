@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { analyticsService } from '../services/analytics.service';
 import { NotFoundError } from '../utils/errors';
-import { Prisma } from '@prisma/client';
+import { Prisma, Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsController {
   /**
@@ -149,46 +149,109 @@ export class AnalyticsController {
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
       const month = parseInt(req.query.month as string);
 
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+      // Get all active plants
       const plants = await prisma.plant.findMany({
         where: { isActive: true },
-        include: {
-          practices: {
-            where: {
-              isDeleted: false,
-              status: 'approved',
-              ...(period === 'yearly'
-                ? {
-                    submittedDate: {
-                      gte: new Date(year, 0, 1),
-                      lt: new Date(year + 1, 0, 1),
-                    },
-                  }
-                : {
-                    submittedDate: {
-                      gte: new Date(year, month - 1, 1),
-                      lt: new Date(year, month, 1),
-                    },
-                  }),
-            },
-          },
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
         },
+      });
+
+      // Determine target year and month
+      const targetYear = period === 'yearly' ? year : currentYear;
+      const targetMonth = period === 'monthly' && month ? month : currentMonth;
+      const targetLastMonth = targetMonth === 1 ? 12 : targetMonth - 1;
+      const targetLastMonthYear = targetMonth === 1 ? targetYear - 1 : targetYear;
+
+      // Get monthly savings data for target month and last month
+      const monthlySavingsData = await prisma.monthlySavings.findMany({
+        where: {
+          OR: [
+            { year: targetYear, month: targetMonth },
+            { year: targetLastMonthYear, month: targetLastMonth },
+          ],
+        },
+        select: {
+          plantId: true,
+          year: true,
+          month: true,
+          totalSavings: true,
+        },
+      });
+
+      // Calculate YTD savings for the year (up to target month)
+      const ytdSavings = await prisma.monthlySavings.groupBy({
+        by: ['plantId'],
+        where: {
+          year: targetYear,
+          month: { lte: targetMonth },
+        },
+        _sum: {
+          totalSavings: true,
+        },
+      });
+
+      const ytdMap = new Map(
+        ytdSavings.map((item) => [item.plantId, item._sum.totalSavings || new Decimal(0)])
+      );
+
+      // Get current month and last month savings
+      const currentMonthData = monthlySavingsData.filter(
+        (ms) => ms.month === targetMonth && ms.year === targetYear
+      );
+      const lastMonthData = monthlySavingsData.filter(
+        (ms) => ms.month === targetLastMonth && ms.year === targetLastMonthYear
+      );
+
+      const currentMonthMap = new Map(
+        currentMonthData.map((ms) => [ms.plantId, ms.totalSavings])
+      );
+      const lastMonthMap = new Map(
+        lastMonthData.map((ms) => [ms.plantId, ms.totalSavings])
+      );
+
+      // Format the response
+      const result = plants.map((plant) => {
+        const currentMonthSavings = currentMonthMap.get(plant.id) || new Decimal(0);
+        const lastMonthSavings = lastMonthMap.get(plant.id) || new Decimal(0);
+        const ytdTotal = ytdMap.get(plant.id) || new Decimal(0);
+
+        // Convert to number for calculations
+        const currentMonthNum = Number(currentMonthSavings);
+        const lastMonthNum = Number(lastMonthSavings);
+        const ytdNum = Number(ytdTotal);
+
+        // Calculate YTD till last month (YTD total minus current month)
+        const ytdTillLastMonth = Math.max(0, ytdNum - currentMonthNum);
+
+        // Calculate percent change
+        const percentChange = lastMonthNum === 0 
+          ? (currentMonthNum > 0 ? 100 : 0)
+          : ((currentMonthNum - lastMonthNum) / lastMonthNum) * 100;
+
+        // Return values in lakhs (frontend will handle currency conversion for display)
+        return {
+          plant_id: plant.id,
+          plant_name: plant.name,
+          short_name: plant.shortName,
+          last_month: lastMonthNum.toFixed(2),
+          current_month: currentMonthNum.toFixed(2),
+          ytd_till_last_month: ytdTillLastMonth.toFixed(2),
+          ytd_total: ytdNum.toFixed(2),
+          percent_change: Number(percentChange.toFixed(2)),
+        };
       });
 
       res.json({
         success: true,
-        data: plants.map((plant) => ({
-          plant: {
-            id: plant.id,
-            name: plant.name,
-          },
-          total_savings: analyticsService.formatCurrency(
-            plant.practices.reduce(
-              (sum, p) => sum + (p.savingsAmount || new Decimal(0)),
-              new Decimal(0)
-            ),
-            currency
-          ),
-        })),
+        data: result,
       });
     } catch (error) {
       next(error);
@@ -202,33 +265,95 @@ export class AnalyticsController {
     try {
       const currency = (req.query.currency as string) || 'lakhs';
 
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+      // Get all active plants
       const plants = await prisma.plant.findMany({
         where: { isActive: true },
-        include: {
-          practices: {
-            where: {
-              isDeleted: false,
-              status: 'approved',
-            },
-          },
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
         },
+      });
+
+      // Get monthly savings data for current month and last month
+      const monthlySavingsData = await prisma.monthlySavings.findMany({
+        where: {
+          year: { in: [currentYear, lastMonthYear] },
+          month: { in: [currentMonth, lastMonth] },
+        },
+        select: {
+          plantId: true,
+          year: true,
+          month: true,
+          totalSavings: true,
+        },
+      });
+
+      // Calculate YTD till last month (sum of all months before current month)
+      const ytdTillLastMonthData = await prisma.monthlySavings.groupBy({
+        by: ['plantId'],
+        where: {
+          year: currentYear,
+          month: { lt: currentMonth },
+        },
+        _sum: {
+          totalSavings: true,
+        },
+      });
+
+      const ytdTillLastMonthMap = new Map(
+        ytdTillLastMonthData.map((item) => [item.plantId, item._sum.totalSavings || new Decimal(0)])
+      );
+
+      // Get current month and last month savings
+      const currentMonthMap = new Map<string, Decimal>();
+      const lastMonthMap = new Map<string, Decimal>();
+
+      monthlySavingsData.forEach((ms) => {
+        if (ms.year === currentYear && ms.month === currentMonth) {
+          currentMonthMap.set(ms.plantId, ms.totalSavings);
+        } else if (ms.year === lastMonthYear && ms.month === lastMonth) {
+          lastMonthMap.set(ms.plantId, ms.totalSavings);
+        }
+      });
+
+      // Format the response
+      const result = plants.map((plant) => {
+        const currentMonthSavings = currentMonthMap.get(plant.id) || new Decimal(0);
+        const lastMonthSavings = lastMonthMap.get(plant.id) || new Decimal(0);
+        const ytdTillLastMonth = ytdTillLastMonthMap.get(plant.id) || new Decimal(0);
+
+        // Convert to number for calculations
+        const currentMonthNum = Number(currentMonthSavings);
+        const lastMonthNum = Number(lastMonthSavings);
+        const ytdTillLastMonthNum = Number(ytdTillLastMonth);
+
+        // Calculate percent change
+        const percentChange = lastMonthNum === 0 
+          ? (currentMonthNum > 0 ? 100 : 0)
+          : ((currentMonthNum - lastMonthNum) / lastMonthNum) * 100;
+
+        // Return values in lakhs (frontend will handle currency conversion for display)
+        return {
+          plant_id: plant.id,
+          plant_name: plant.name,
+          short_name: plant.shortName,
+          last_month: lastMonthNum.toFixed(2),
+          current_month: currentMonthNum.toFixed(2),
+          ytd_till_last_month: ytdTillLastMonthNum.toFixed(2),
+          ytd_total: (ytdTillLastMonthNum + currentMonthNum).toFixed(2),
+          percent_change: Number(percentChange.toFixed(2)),
+        };
       });
 
       res.json({
         success: true,
-        data: plants.map((plant) => ({
-          plant: {
-            id: plant.id,
-            name: plant.name,
-          },
-          total_savings: analyticsService.formatCurrency(
-            plant.practices.reduce(
-              (sum, p) => sum + (p.savingsAmount || new Decimal(0)),
-              new Decimal(0)
-            ),
-            currency
-          ),
-        })),
+        data: result,
       });
     } catch (error) {
       next(error);
@@ -422,6 +547,8 @@ export class AnalyticsController {
       });
 
       for (const plant of plants) {
+        let ytdSavings = new Prisma.Decimal(0);
+        
         for (let month = 1; month <= 12; month++) {
           const practices = await prisma.bestPractice.findMany({
             where: {
@@ -435,13 +562,18 @@ export class AnalyticsController {
             },
           });
 
-          const totalSavings = practices.reduce(
+          const monthlySavings = practices.reduce(
             (sum, p) => sum + (p.savingsAmount || Prisma.Decimal(0)),
             Prisma.Decimal(0)
           );
 
+          // Accumulate YTD savings
+          ytdSavings = ytdSavings.add(monthlySavings);
+
+          // Calculate stars using BOTH monthly and YTD thresholds
           const stars = analyticsService.calculateStarRating(
-            totalSavings,
+            monthlySavings,
+            ytdSavings,
             'lakhs'
           );
 
@@ -454,7 +586,7 @@ export class AnalyticsController {
               },
             },
             update: {
-              totalSavings,
+              totalSavings: monthlySavings,
               practiceCount: practices.length,
               stars,
             },
@@ -462,7 +594,7 @@ export class AnalyticsController {
               plantId: plant.id,
               year,
               month,
-              totalSavings,
+              totalSavings: monthlySavings,
               practiceCount: practices.length,
               stars,
             },

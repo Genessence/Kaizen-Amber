@@ -996,7 +996,23 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                           <td className="py-2 font-medium">{r.name}</td>
                           <td className="py-2">{formatCurrency(r.monthly, 1, starRatingsFormat)}</td>
                           <td className="py-2">{formatCurrency(r.ytd, 1, starRatingsFormat)}</td>
-                          <td className="py-2">{r.monthStars}</td>
+                          <td className="py-2">
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${
+                                    i < r.monthStars
+                                      ? 'fill-yellow-400 text-yellow-400'
+                                      : 'text-muted-foreground'
+                                  }`}
+                                />
+                              ))}
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                ({r.monthStars})
+                              </span>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1017,42 +1033,160 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                     {starDrillPlant ? `${starDrillPlant} - Monthly Savings & Stars` : "Monthly Savings & Stars"}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Savings are in ₹ {starRatingsFormat === 'crores' ? 'crores' : 'lakhs'}; stars are computed per monthly savings criteria.
+                    Savings are in ₹ {starRatingsFormat === 'crores' ? 'crores' : 'lakhs'}. Stars are calculated based on BOTH monthly and YTD thresholds:
+                    <br />• 5⭐: YTD &gt; 200L and Monthly &gt; 16L
+                    <br />• 4⭐: YTD 150-200L and Monthly 12-16L
+                    <br />• 3⭐: YTD 100-150L and Monthly 8-12L
+                    <br />• 2⭐: YTD 50-100L and Monthly 4-8L
+                    <br />• 1⭐: YTD &gt; 50L and Monthly &gt; 4L
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 {monthlyTrendLoading ? (
                   <TableSkeleton rows={5} />
                 ) : monthlyTrendData && monthlyTrendData.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-muted-foreground">
-                          <th className="py-1">Month</th>
-                          <th className="py-1">Savings (₹{starRatingsFormat === 'crores' ? 'Cr' : 'L'})</th>
-                          <th className="py-1">Stars</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {monthlyTrendData.map((row) => {
-                          // Parse savings string to number
-                          const parseSavings = (savingsStr: string): number => {
-                            if (!savingsStr) return 0;
-                            const isCrores = savingsStr.includes("Cr");
-                            const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
-                            const value = parseFloat(numStr) || 0;
-                            return isCrores ? value * 100 : value;
-                          };
-                          const savingsValue = parseSavings(row.savings);
-                          return (
-                            <tr key={row.month}>
-                              <td className="py-1">{row.month}</td>
-                              <td className="py-1">{formatCurrency(savingsValue, 1, starRatingsFormat)}</td>
-                              <td className="py-1">{row.stars}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="space-y-4">
+                    {/* 12-Month Trend Chart */}
+                    <div className="h-[300px] w-full">
+                      <ChartContainer
+                        config={{
+                          savings: {
+                            label: `Savings (₹${starRatingsFormat === 'crores' ? 'Cr' : 'L'})`,
+                            color: "hsl(var(--success))",
+                          },
+                          stars: {
+                            label: "Stars ⭐",
+                            color: "hsl(var(--warning))",
+                          },
+                        }}
+                        className="h-full w-full"
+                      >
+                        <BarChart
+                          data={monthlyTrendData.map((row) => {
+                            const parseSavings = (savingsStr: string): number => {
+                              if (!savingsStr) return 0;
+                              const isCrores = savingsStr.includes("Cr");
+                              const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
+                              const value = parseFloat(numStr) || 0;
+                              return isCrores ? value * 100 : value;
+                            };
+                            return {
+                              month: row.month,
+                              savings: parseSavings(row.savings),
+                              stars: row.stars || 0,
+                            };
+                          })}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <defs>
+                            <linearGradient id="gradientSavings" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="hsl(var(--success))" stopOpacity={0.9} />
+                              <stop offset="100%" stopColor="hsl(var(--success))" stopOpacity={0.4} />
+                            </linearGradient>
+                            <linearGradient id="gradientStars" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="hsl(var(--warning))" stopOpacity={0.9} />
+                              <stop offset="100%" stopColor="hsl(var(--warning))" stopOpacity={0.4} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis yAxisId="left" />
+                          <YAxis yAxisId="right" orientation="right" />
+                          <ChartTooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border bg-background p-2 shadow-md">
+                                    <div className="grid gap-2">
+                                      <div className="flex flex-col">
+                                        <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                          {label}
+                                        </span>
+                                      </div>
+                                      {payload.map((entry, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                          <div
+                                            className="h-2 w-2 rounded-full"
+                                            style={{ backgroundColor: entry.color }}
+                                          />
+                                          <span className="text-[0.70rem] text-muted-foreground">
+                                            {entry.dataKey === "savings"
+                                              ? `Savings: ${formatCurrency(entry.value as number, 1, starRatingsFormat)}`
+                                              : `Stars: ${entry.value} ⭐`}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <ChartLegend content={<ChartLegendContent />} />
+                          <Bar
+                            yAxisId="left"
+                            dataKey="savings"
+                            fill="url(#gradientSavings)"
+                            radius={[8, 8, 0, 0]}
+                          />
+                          <Bar
+                            yAxisId="right"
+                            dataKey="stars"
+                            fill="url(#gradientStars)"
+                            radius={[8, 8, 0, 0]}
+                          />
+                        </BarChart>
+                      </ChartContainer>
+                    </div>
+
+                    {/* Monthly Breakdown Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="py-1">Month</th>
+                            <th className="py-1">Savings (₹{starRatingsFormat === 'crores' ? 'Cr' : 'L'})</th>
+                            <th className="py-1">Stars</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {monthlyTrendData.map((row) => {
+                            // Parse savings string to number
+                            const parseSavings = (savingsStr: string): number => {
+                              if (!savingsStr) return 0;
+                              const isCrores = savingsStr.includes("Cr");
+                              const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
+                              const value = parseFloat(numStr) || 0;
+                              return isCrores ? value * 100 : value;
+                            };
+                            const savingsValue = parseSavings(row.savings);
+                            return (
+                              <tr key={row.month}>
+                                <td className="py-1">{row.month}</td>
+                                <td className="py-1">{formatCurrency(savingsValue, 1, starRatingsFormat)}</td>
+                                <td className="py-1">
+                                  <div className="flex items-center gap-1">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`h-3 w-3 ${
+                                          i < (row.stars || 0)
+                                            ? 'fill-yellow-400 text-yellow-400'
+                                            : 'text-muted-foreground'
+                                        }`}
+                                      />
+                                    ))}
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                      ({row.stars || 0})
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">

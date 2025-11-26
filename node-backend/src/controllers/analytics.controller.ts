@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { analyticsService } from '../services/analytics.service';
+import { savingsCalculatorService } from '../services/savings-calculator.service';
 import { NotFoundError } from '../utils/errors';
-import { Prisma, Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 export class AnalyticsController {
   /**
@@ -54,7 +55,7 @@ export class AnalyticsController {
           practices: {
             where: {
               isDeleted: false,
-              status: 'approved',
+              status: { in: ['submitted', 'approved'] },
               ...(period === 'yearly'
                 ? {
                     submittedDate: {
@@ -75,11 +76,11 @@ export class AnalyticsController {
 
       res.json(
         plants.map((plant) => ({
-          plant: {
-            id: plant.id,
-            name: plant.name,
-            short_name: plant.shortName,
-          },
+          plant_id: plant.id,
+          plant_name: plant.name,
+          plant_short_name: plant.shortName,
+          short_name: plant.shortName,
+          submitted: plant.practices.length,
           practice_count: plant.practices.length,
           total_savings: plant.practices.reduce(
             (sum, p) => sum + Number(p.savingsAmount || 0),
@@ -385,14 +386,61 @@ export class AnalyticsController {
         orderBy: { month: 'asc' },
       });
 
-      res.json(
-        monthlySavings.map((ms) => ({
-          month: `${year}-${String(ms.month).padStart(2, '0')}`,
-          total_savings: analyticsService.formatCurrency(ms.totalSavings, currency),
-          practice_count: ms.practiceCount,
-          practices: [], // Would need to fetch practices for each month
-        }))
+      // Fetch practices for each month in parallel
+      const monthlyBreakdowns = await Promise.all(
+        monthlySavings.map(async (ms) => {
+          // Calculate date range for this month
+          const monthStart = new Date(year, ms.month - 1, 1);
+          const monthEnd = new Date(year, ms.month, 1);
+
+          // Fetch practices for this specific month
+          const practices = await prisma.bestPractice.findMany({
+            where: {
+              plantId,
+              status: { in: ['submitted', 'approved'] },
+              isDeleted: false,
+              submittedDate: {
+                gte: monthStart,
+                lt: monthEnd,
+              },
+            },
+            include: {
+              benchmarked: true, // To check if practice is benchmarked
+            },
+            orderBy: {
+              submittedDate: 'desc',
+            },
+          });
+
+          // Map practices to the expected format
+          // Normalize savings to lakhs (base unit) for consistent frontend formatting
+          const practicesData = practices.map((practice) => {
+            let savingsInLakhs = 0;
+            if (practice.savingsAmount) {
+              savingsInLakhs = Number(practice.savingsAmount);
+              // Convert crores to lakhs if needed (1 crore = 100 lakhs)
+              if (practice.savingsCurrency === 'crores') {
+                savingsInLakhs = savingsInLakhs * 100;
+              }
+            }
+            
+            return {
+              title: practice.title,
+              savings: savingsInLakhs, // Return numeric value in lakhs
+              benchmarked: !!practice.benchmarked,
+            };
+          });
+
+          return {
+            month: `${year}-${String(ms.month).padStart(2, '0')}`,
+            total_savings: analyticsService.formatCurrency(ms.totalSavings, currency),
+            practice_count: ms.practiceCount,
+            practices: practicesData,
+          };
+        })
       );
+
+      res.json(monthlyBreakdowns);
     } catch (error) {
       next(error);
     }
@@ -536,71 +584,14 @@ export class AnalyticsController {
 
   /**
    * Recalculate savings
+   * Uses SavingsCalculatorService to properly normalize currency and convert periods
    */
   async recalculateSavings(req: Request, res: Response, next: NextFunction) {
     try {
       const year = parseInt(req.body.year as string) || new Date().getFullYear();
 
-      // Recalculate monthly savings for all plants
-      const plants = await prisma.plant.findMany({
-        where: { isActive: true },
-      });
-
-      for (const plant of plants) {
-        let ytdSavings = new Prisma.Decimal(0);
-        
-        for (let month = 1; month <= 12; month++) {
-          const practices = await prisma.bestPractice.findMany({
-            where: {
-              plantId: plant.id,
-              isDeleted: false,
-              status: 'approved',
-              submittedDate: {
-                gte: new Date(year, month - 1, 1),
-                lt: new Date(year, month, 1),
-              },
-            },
-          });
-
-          const monthlySavings = practices.reduce(
-            (sum, p) => sum + (p.savingsAmount || Prisma.Decimal(0)),
-            Prisma.Decimal(0)
-          );
-
-          // Accumulate YTD savings
-          ytdSavings = ytdSavings.add(monthlySavings);
-
-          // Calculate stars using BOTH monthly and YTD thresholds
-          const stars = analyticsService.calculateStarRating(
-            monthlySavings,
-            ytdSavings,
-            'lakhs'
-          );
-
-          await prisma.monthlySavings.upsert({
-            where: {
-              plantId_year_month: {
-                plantId: plant.id,
-                year,
-                month,
-              },
-            },
-            update: {
-              totalSavings: monthlySavings,
-              practiceCount: practices.length,
-              stars,
-            },
-            create: {
-              plantId: plant.id,
-              year,
-              month,
-              totalSavings: monthlySavings,
-              practiceCount: practices.length,
-              stars,
-            },
-          });
-        }
-      }
+      // Use the savings calculator service to recalculate for all plants
+      await savingsCalculatorService.recalculateAllPlantsSavings(year);
 
       res.json({
         success: true,

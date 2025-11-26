@@ -22,9 +22,14 @@ import notificationsRoutes from './routes/notifications.routes';
 const createApp = (): Express => {
   const app = express();
 
-  // Security middleware
-  app.use(helmet());
+  // CORS must be before other middleware
   app.use(corsMiddleware);
+  
+  // Security middleware
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(compression());
 
   // Body parsing

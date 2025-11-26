@@ -25,7 +25,7 @@ export const changePasswordSchema = z.object({
 });
 
 // Best Practice validators
-export const createBestPracticeSchema = z.object({
+const baseBestPracticeSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().min(1, 'Description is required'),
   category_id: z.string().uuid('Invalid category ID'),
@@ -35,14 +35,16 @@ export const createBestPracticeSchema = z.object({
   metrics: z.string().optional(),
   implementation: z.string().optional(),
   investment: z.string().optional(),
-  savings_amount: z.number().positive().optional(),
-  savings_currency: z.enum(['lakhs', 'crores']).optional(),
-  savings_period: z.enum(['monthly', 'annually']).optional(),
+  savings_amount: z.number().int().positive(),
+  savings_currency: z.enum(['lakhs', 'crores']),
+  savings_period: z.enum(['monthly']).default('monthly'),
   area_implemented: z.string().optional(),
   status: z.enum(['draft', 'submitted', 'approved', 'revision_required']).optional(),
 });
 
-export const updateBestPracticeSchema = createBestPracticeSchema.partial();
+export const createBestPracticeSchema = baseBestPracticeSchema;
+
+export const updateBestPracticeSchema = baseBestPracticeSchema.partial();
 
 export const listBestPracticesSchema = z.object({
   page: z.string().transform(Number).optional().default('1'),

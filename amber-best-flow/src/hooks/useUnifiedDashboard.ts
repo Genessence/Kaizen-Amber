@@ -13,8 +13,9 @@ export const useUnifiedDashboard = (currency: 'lakhs' | 'crores' = 'lakhs') => {
   return useQuery({
     queryKey: ['unified-dashboard', user?.plant_id, currency],
     queryFn: () => apiService.getUnifiedDashboard(user?.plant_id, currency),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch when component mounts or query is invalidated
     gcTime: 30 * 60 * 1000, // 30 minutes
+    refetchOnMount: true, // Always refetch when component mounts
   });
 };
 

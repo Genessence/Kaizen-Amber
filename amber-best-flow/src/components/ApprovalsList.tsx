@@ -31,8 +31,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
   const [showFilters, setShowFilters] = useState(false);
   const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
-  // Fetch submitted practices (awaiting approval) OR approved practices (not benchmarked)
-  // For now, fetch submitted practices - these need to be approved first
+  // Fetch submitted practices from all plants - these can be benchmarked by HQ
   const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
     status: 'submitted',
     limit: 100,
@@ -98,7 +97,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
           <h1 className="text-3xl font-bold">Practice Approvals</h1>
           <p className="text-muted-foreground mt-1">
             {userRole === "hq" 
-              ? "Review submitted practices and approve them for benchmarking"
+              ? "Review submitted practices and benchmark exceptional ones"
               : "View submitted practices from your plant"
             }
           </p>
@@ -153,7 +152,7 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
               <FileCheck2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">No practices found.</p>
               <p className="text-sm text-muted-foreground mt-2">
-                {searchTerm ? "Try adjusting your search terms." : "No practices are submitted and awaiting approval yet."}
+                {searchTerm ? "Try adjusting your search terms." : "No practices have been submitted yet."}
               </p>
             </div>
           ) : (

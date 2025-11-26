@@ -73,7 +73,7 @@ export interface CategoryWithCount extends Category {
 // ============= Best Practice Types =============
 
 export type SavingsCurrency = "lakhs" | "crores";
-export type SavingsPeriod = "monthly" | "annually";
+export type SavingsPeriod = "monthly";
 export type PracticeStatus = "draft" | "submitted" | "approved" | "revision_required";
 export type ImageType = "before" | "after";
 
@@ -117,9 +117,10 @@ export interface BestPractice {
   metrics?: string;
   implementation?: string;
   investment?: string;
-  savings_amount?: number;
-  savings_currency?: SavingsCurrency;
-  savings_period?: SavingsPeriod;
+  /** Monthly savings amount (integer only, required) */
+  savings_amount: number;
+  savings_currency: SavingsCurrency;
+  savings_period: SavingsPeriod;
   area_implemented?: string;
   status: PracticeStatus;
   submitted_date?: string;
@@ -144,8 +145,9 @@ export interface BestPracticeListItem {
   submitted_by_name: string;
   submitted_date?: string;
   status: PracticeStatus;
-  savings_amount?: number;
-  savings_currency?: SavingsCurrency;
+  /** Monthly savings amount (integer only, required) */
+  savings_amount: number;
+  savings_currency: SavingsCurrency;
   is_benchmarked: boolean;
   question_count: number;
   has_images: boolean;
@@ -163,9 +165,10 @@ export interface BestPracticeCreate {
   metrics?: string;
   implementation?: string;
   investment?: string;
-  savings_amount?: number;
-  savings_currency?: SavingsCurrency;
-  savings_period?: SavingsPeriod;
+  /** Monthly savings amount (integer only, required) */
+  savings_amount: number;
+  savings_currency: SavingsCurrency;
+  savings_period: SavingsPeriod;
   area_implemented?: string;
   status?: PracticeStatus;
   submitted_date?: string;

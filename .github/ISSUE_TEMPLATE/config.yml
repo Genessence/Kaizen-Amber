@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/your-org/your-repo/blob/main/amber-best-flow/DOCUMENTATION.md
+    about: Check the documentation for help and guides
+  - name: 💬 Ask a Question
+    url: https://github.com/your-org/your-repo/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🆘 Support
+    url: https://github.com/your-org/your-repo/discussions/categories/support
+    about: Get help from the community and maintainers
+

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { leaderboardService } from '../services/leaderboard.service';
+import { Prisma } from '@prisma/client';
 
 export class CopyImplementController {
   /**

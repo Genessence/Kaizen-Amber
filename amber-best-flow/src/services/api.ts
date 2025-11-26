@@ -324,6 +324,7 @@ class APIService {
         plant: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
         status: item.status,
         is_benchmarked: item.is_benchmarked || false,
+        question_count: item.question_count || 0,
         submitted_date: item.submitted_date,
         created_at: item.created_at,
       })),
@@ -1144,15 +1145,37 @@ class APIService {
   /**
    * Upload file to Azure Blob Storage
    */
-  async uploadToAzure(presignedUrl: string, file: File): Promise<void> {
-    await fetch(presignedUrl, {
+  async uploadToAzure(presignedUrl: string, file: File, contentType?: string): Promise<void> {
+    // Determine content type - handle cases where browser doesn't detect PDF correctly
+    let finalContentType = contentType || file.type;
+    if (!finalContentType || finalContentType === 'application/octet-stream') {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      };
+      finalContentType = contentTypeMap[extension || ''] || 'application/pdf';
+    }
+
+    const headers: HeadersInit = {
+      'x-ms-blob-type': 'BlockBlob',
+      'Content-Type': finalContentType,
+      'x-ms-blob-content-type': finalContentType,
+    };
+    
+    const response = await fetch(presignedUrl, {
       method: 'PUT',
       body: file,
-      headers: {
-        'Content-Type': file.type,
-        'x-ms-blob-type': 'BlockBlob',
-      },
+      headers,
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Azure upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
   }
 
   /**
@@ -1167,15 +1190,32 @@ class APIService {
     file_size: number;
     content_type: string;
   }): Promise<PracticeImage> {
-    return this.request<PracticeImage>(`/uploads/confirm-image/${practiceId}`, {
-      method: 'POST',
-      body: JSON.stringify({
+    console.log('[apiService.confirmImageUpload] Confirming image upload:', {
+      practiceId,
+      imageData: {
         image_type: imageData.image_type,
         blob_name: imageData.blob_name,
         file_size: imageData.file_size,
         content_type: imageData.content_type,
-      }),
+      },
     });
+
+    try {
+      const result = await this.request<PracticeImage>(`/uploads/confirm-image/${practiceId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          image_type: imageData.image_type,
+          blob_name: imageData.blob_name,
+          file_size: imageData.file_size,
+          content_type: imageData.content_type,
+        }),
+      });
+      console.log('[apiService.confirmImageUpload] Image confirmed successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[apiService.confirmImageUpload] Error confirming image:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1208,17 +1248,43 @@ class APIService {
     practiceId: string,
     file: File
   ): Promise<PracticeDocument> {
+    // Determine content type - handle cases where browser doesn't detect PDF correctly
+    let contentType = file.type;
+    if (!contentType || contentType === 'application/octet-stream') {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      };
+      contentType = contentTypeMap[extension || ''] || 'application/pdf';
+    }
+
+    console.log('Uploading document:', {
+      name: file.name,
+      size: file.size,
+      contentType: contentType,
+      detectedType: file.type,
+    });
+
     // Step 1: Request presigned URL
     const urlData = await this.requestPresignedUrl({
       practice_id: practiceId,
       file_type: 'document',
       filename: file.name,
-      content_type: file.type,
+      content_type: contentType,
       file_size: file.size,
     });
 
-    // Step 2: Upload to Azure
-    await this.uploadToAzure(urlData.upload_url, file);
+    // Step 2: Upload to Azure with correct content type
+    try {
+      await this.uploadToAzure(urlData.upload_url, file, contentType);
+    } catch (error: any) {
+      console.error('Azure upload error:', error);
+      throw new Error(`Failed to upload document to Azure: ${error.message || 'Unknown error'}`);
+    }
 
     // Step 3: Confirm upload
     // Use URL for blob_url (remove SAS token)
@@ -1230,7 +1296,7 @@ class APIService {
       blob_name: urlData.blob_name,
       blob_url: blob_url,
       file_size: file.size,
-      content_type: file.type,
+      content_type: contentType,
     });
   }
 
@@ -1265,30 +1331,57 @@ class APIService {
     file: File,
     imageType: 'before' | 'after'
   ): Promise<PracticeImage> {
-    // Step 1: Request presigned URL
-    const urlData = await this.requestPresignedUrl({
-      practice_id: practiceId,
-      file_type: 'image',
-      image_type: imageType,
-      filename: file.name,
-      content_type: file.type,
-      file_size: file.size,
+    console.log('[apiService.uploadPracticeImage] Starting upload:', {
+      practiceId,
+      imageType,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
     });
 
-    // Step 2: Upload to Azure Blob Storage
-    await this.uploadToAzure(urlData.upload_url, file);
+    try {
+      // Step 1: Request presigned URL
+      console.log('[apiService.uploadPracticeImage] Step 1: Requesting presigned URL...');
+      const urlData = await this.requestPresignedUrl({
+        practice_id: practiceId,
+        file_type: 'image',
+        image_type: imageType,
+        filename: file.name,
+        content_type: file.type,
+        file_size: file.size,
+      });
+      console.log('[apiService.uploadPracticeImage] Presigned URL received:', {
+        blob_name: urlData.blob_name,
+        container: urlData.container,
+        upload_url_length: urlData.upload_url.length,
+      });
 
-    // Step 3: Confirm upload
-    const blob_url = urlData.upload_url.split('?')[0];
-    return this.confirmImageUpload(practiceId, {
-      practice_id: practiceId,
-      image_type: imageType,
-      blob_container: urlData.container,
-      blob_name: urlData.blob_name,
-      blob_url: blob_url,
-      file_size: file.size,
-      content_type: file.type,
-    });
+      // Step 2: Upload to Azure Blob Storage
+      console.log('[apiService.uploadPracticeImage] Step 2: Uploading to Azure...');
+      await this.uploadToAzure(urlData.upload_url, file, file.type);
+      console.log('[apiService.uploadPracticeImage] Azure upload successful');
+
+      // Step 3: Confirm upload
+      console.log('[apiService.uploadPracticeImage] Step 3: Confirming upload with backend...');
+      const blob_url = urlData.upload_url.split('?')[0];
+      const confirmData = {
+        practice_id: practiceId,
+        image_type: imageType,
+        blob_container: urlData.container,
+        blob_name: urlData.blob_name,
+        blob_url: blob_url,
+        file_size: file.size,
+        content_type: file.type,
+      };
+      console.log('[apiService.uploadPracticeImage] Confirmation data:', confirmData);
+      
+      const result = await this.confirmImageUpload(practiceId, confirmData);
+      console.log('[apiService.uploadPracticeImage] Image upload confirmed successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('[apiService.uploadPracticeImage] Error during upload:', error);
+      throw error;
+    }
   }
 
   /**

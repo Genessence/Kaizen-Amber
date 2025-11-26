@@ -81,6 +81,11 @@ export class BestPracticesController {
             },
           },
           benchmarked: true,
+          _count: {
+            select: {
+              questions: true,
+            },
+          },
         },
       });
 
@@ -110,6 +115,7 @@ export class BestPracticesController {
           savings_period: practice.savingsPeriod,
           submitted_date: practice.submittedDate?.toISOString(),
           is_benchmarked: !!practice.benchmarked,
+          question_count: practice._count.questions || 0,
           created_at: practice.createdAt.toISOString(),
           updated_at: practice.updatedAt.toISOString(),
         })),

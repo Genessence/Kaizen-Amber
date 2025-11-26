@@ -9,14 +9,25 @@ import type { PracticeImage } from '@/types/api';
 export const usePracticeImages = (practiceId?: string) => {
   return useQuery<PracticeImage[]>({
     queryKey: ['practice-images', practiceId],
-    queryFn: () => {
+    queryFn: async () => {
       if (!practiceId) {
+        console.log('usePracticeImages: No practiceId provided');
         return Promise.resolve([]);
       }
-      return apiService.getPracticeImages(practiceId);
+      try {
+        console.log('usePracticeImages: Fetching images for practice:', practiceId);
+        const images = await apiService.getPracticeImages(practiceId);
+        console.log('usePracticeImages: Received images:', images);
+        return images;
+      } catch (error) {
+        console.error('usePracticeImages: Error fetching images:', error);
+        throw error;
+      }
     },
     enabled: !!practiceId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
+    retryDelay: 1000,
   });
 };
 

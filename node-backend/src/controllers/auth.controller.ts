@@ -11,7 +11,14 @@ export class AuthController {
    */
   async login(req: Request, res: Response, next: NextFunction) {
     try {
+      console.log('Login attempt:', { email: req.body.email, timestamp: new Date().toISOString() });
+      
       const { email, password, remember_me } = req.body;
+
+      if (!email || !password) {
+        console.log('Login failed: Missing email or password');
+        return next(new BadRequestError('Email and password are required'));
+      }
 
       // Find user
       const user = await prisma.user.findUnique({
@@ -19,13 +26,20 @@ export class AuthController {
         include: { plant: true },
       });
 
-      if (!user || !user.isActive) {
+      if (!user) {
+        console.log('Login failed: User not found', { email });
         return next(new UnauthorizedError('Invalid credentials'));
+      }
+
+      if (!user.isActive) {
+        console.log('Login failed: User inactive', { email, userId: user.id });
+        return next(new UnauthorizedError('Account is inactive'));
       }
 
       // Verify password
       const isValidPassword = await comparePassword(password, user.hashedPassword);
       if (!isValidPassword) {
+        console.log('Login failed: Invalid password', { email, userId: user.id });
         return next(new UnauthorizedError('Invalid credentials'));
       }
 
@@ -40,6 +54,8 @@ export class AuthController {
       const accessToken = generateAccessToken(tokenPayload);
       const refreshToken = generateRefreshToken(tokenPayload);
 
+      console.log('Login successful:', { email, userId: user.id, role: user.role });
+
       // Return response
       res.json({
         access_token: accessToken,
@@ -48,6 +64,7 @@ export class AuthController {
         expires_in: env.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
       });
     } catch (error) {
+      console.error('Login error:', error);
       next(error);
     }
   }

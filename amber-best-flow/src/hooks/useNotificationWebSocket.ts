@@ -42,9 +42,16 @@ export const useNotificationWebSocket = () => {
     };
   }, [socket, queryClient]);
 
+  // Determine connection state more accurately
+  // Socket.io has a 'connected' property that reflects the actual connection state
+  // Use socket.connected as the source of truth, fallback to isConnected from context
+  const actuallyConnected = socket?.connected ?? isConnected;
+  // Socket is connecting if it exists, is not connected, but is active (trying to connect)
+  const actuallyConnecting = socket ? (!socket.connected && socket.active) : false;
+
   return {
-    connected: isConnected,
-    connecting: !isConnected && socket !== null,
+    connected: actuallyConnected,
+    connecting: actuallyConnecting,
     socket,
   };
 };

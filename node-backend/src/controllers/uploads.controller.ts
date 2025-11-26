@@ -50,12 +50,29 @@ export class UploadsController {
    */
   async confirmImageUpload(req: Request, res: Response, next: NextFunction) {
     try {
+      console.log(`[confirmImageUpload] Request received for practice: ${req.params.practiceId}`, {
+        body: req.body,
+        userId: req.user?.userId,
+        userRole: req.user?.role,
+      });
+
       if (!req.user) {
+        console.error('[confirmImageUpload] No user in request');
         return next(new ForbiddenError());
       }
 
       const { practiceId } = req.params;
       const { image_type, blob_name, file_size, content_type } = req.body;
+
+      if (!image_type || !blob_name || !file_size || !content_type) {
+        console.error('[confirmImageUpload] Missing required fields:', {
+          image_type,
+          blob_name,
+          file_size,
+          content_type,
+        });
+        return next(new BadRequestError('Missing required fields: image_type, blob_name, file_size, content_type'));
+      }
 
       // Verify practice exists and user has permission
       const practice = await prisma.bestPractice.findFirst({
@@ -66,15 +83,29 @@ export class UploadsController {
       });
 
       if (!practice) {
+        console.error(`[confirmImageUpload] Practice not found: ${practiceId}`);
         return next(new NotFoundError('Practice not found'));
       }
 
+      console.log(`[confirmImageUpload] Practice found:`, {
+        practiceId: practice.id,
+        submittedByUserId: practice.submittedByUserId,
+        currentUserId: req.user.userId,
+        userRole: req.user.role,
+      });
+
       if (practice.submittedByUserId !== req.user.userId && req.user.role !== 'hq') {
+        console.error(`[confirmImageUpload] Permission denied:`, {
+          practiceSubmittedBy: practice.submittedByUserId,
+          currentUserId: req.user.userId,
+          userRole: req.user.role,
+        });
         return next(new ForbiddenError('You do not have permission to add images to this practice'));
       }
 
       // Get blob URL
       const blobUrl = azureStorageService.getBlobUrl(blob_name, 'image');
+      console.log(`[confirmImageUpload] Generated blob URL:`, blobUrl.substring(0, 100) + '...');
 
       // Create image record
       const image = await prisma.practiceImage.create({
@@ -89,6 +120,13 @@ export class UploadsController {
         },
       });
 
+      console.log(`[confirmImageUpload] Image created successfully:`, {
+        imageId: image.id,
+        practiceId: image.practiceId,
+        imageType: image.imageType,
+        blobName: image.blobName,
+      });
+
       res.status(201).json({
         id: image.id,
         practice_id: image.practiceId,
@@ -99,6 +137,7 @@ export class UploadsController {
         uploaded_at: image.uploadedAt.toISOString(),
       });
     } catch (error) {
+      console.error(`[confirmImageUpload] Error:`, error);
       next(error);
     }
   }
@@ -167,26 +206,42 @@ export class UploadsController {
   async getPracticeImages(req: Request, res: Response, next: NextFunction) {
     try {
       const { practiceId } = req.params;
+      console.log(`[getPracticeImages] Fetching images for practice: ${practiceId}`);
 
       const images = await prisma.practiceImage.findMany({
         where: { practiceId },
         orderBy: { uploadedAt: 'asc' },
       });
 
-      res.json(
-        images.map((img) => ({
+      console.log(`[getPracticeImages] Found ${images.length} images for practice ${practiceId}`);
+
+      // Generate SAS tokens for read access (valid for 1 hour)
+      const mappedImages = images.map((img) => {
+        // Generate SAS token for reading the blob
+        const sasUrl = azureStorageService.generateReadSasUrl(img.blobName, 'image');
+        
+        return {
           id: img.id,
           practice_id: img.practiceId,
           image_type: img.imageType,
           blob_container: img.blobContainer,
           blob_name: img.blobName,
-          blob_url: img.blobUrl,
+          blob_url: sasUrl, // Use SAS URL instead of plain blob URL
           file_size: img.fileSize,
           content_type: img.contentType,
           uploaded_at: img.uploadedAt.toISOString(),
-        }))
-      );
+        };
+      });
+
+      console.log(`[getPracticeImages] Returning images:`, mappedImages.map(img => ({
+        id: img.id,
+        image_type: img.image_type,
+        blob_url: img.blob_url.substring(0, 100) + '...', // Truncate for logging
+      })));
+
+      res.json(mappedImages);
     } catch (error) {
+      console.error(`[getPracticeImages] Error fetching images for practice ${req.params.practiceId}:`, error);
       next(error);
     }
   }

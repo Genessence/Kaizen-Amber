@@ -161,7 +161,9 @@ export class AnalyticsService {
       include: {
         plant: {
           select: {
+            id: true,
             name: true,
+            shortName: true,
           },
         },
       },
@@ -169,11 +171,91 @@ export class AnalyticsService {
       take: 10,
     });
 
-    return entries.map((entry, index) => ({
-      rank: index + 1,
-      plant: entry.plant.name,
-      total_points: entry.totalPoints,
-    }));
+    // Get breakdown for each plant
+    const leaderboardWithBreakdown = await Promise.all(
+      entries.map(async (entry, index) => {
+        const plantId = entry.plantId;
+
+        // Get origin points breakdown (benchmarked practices that were copied)
+        const benchmarkedPractices = await prisma.benchmarkedPractice.findMany({
+          where: {
+            practice: {
+              plantId,
+              isDeleted: false,
+            },
+          },
+          include: {
+            practice: {
+              include: {
+                copiedVersions: {
+                  where: {
+                    copiedDate: {
+                      gte: new Date(year, 0, 1),
+                      lt: new Date(year + 1, 0, 1),
+                    },
+                  },
+                  orderBy: { copiedDate: 'asc' },
+                  take: 1, // Only count first copy for origin points
+                },
+              },
+            },
+          },
+        });
+
+        const originBreakdown = benchmarkedPractices
+          .filter((bp) => bp.practice.copiedVersions.length > 0)
+          .map((bp) => ({
+            type: 'Origin' as const,
+            points: 10,
+            date: bp.practice.copiedVersions[0].copiedDate.toISOString(),
+            bp_title: bp.practice.title,
+          }));
+
+        // Get copier points breakdown
+        const copies = await prisma.copiedPractice.findMany({
+          where: {
+            copyingPlantId: plantId,
+            copiedDate: {
+              gte: new Date(year, 0, 1),
+              lt: new Date(year + 1, 0, 1),
+            },
+          },
+          include: {
+            originalPractice: {
+              select: {
+                title: true,
+              },
+            },
+          },
+          orderBy: { copiedDate: 'desc' },
+        });
+
+        const copierBreakdown = copies.map((copy) => ({
+          type: 'Copier' as const,
+          points: 5,
+          date: copy.copiedDate.toISOString(),
+          bp_title: copy.originalPractice.title,
+        }));
+
+        // Combine and sort breakdown by date (newest first)
+        const breakdown = [...originBreakdown, ...copierBreakdown].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        return {
+          rank: index + 1,
+          plant_id: entry.plant.id,
+          plant_name: entry.plant.name,
+          plant_short_name: entry.plant.shortName,
+          total_points: entry.totalPoints,
+          origin_points: entry.originPoints,
+          copier_points: entry.copierPoints,
+          breakdown,
+        };
+      })
+    );
+
+    return leaderboardWithBreakdown;
   }
 
   private async getCopySpreadSummary() {
@@ -431,7 +513,10 @@ export class AnalyticsService {
     const practices = await prisma.bestPractice.findMany({
       where: {
         isDeleted: false,
-        status: 'approved',
+        // Show all submitted practices (not just approved) - users want to see latest submissions
+        status: {
+          in: ['submitted', 'approved'], // Include both submitted and approved practices
+        },
       },
       include: {
         category: {
@@ -449,7 +534,7 @@ export class AnalyticsService {
           },
         },
       },
-      orderBy: { submittedDate: 'desc' },
+      orderBy: { submittedDate: 'desc' }, // Order by submission date, newest first
       take: limit,
     });
 

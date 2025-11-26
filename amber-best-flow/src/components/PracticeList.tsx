@@ -21,6 +21,7 @@ import { useBestPractices } from "@/hooks/useBestPractices";
 import { useCategories } from "@/hooks/useCategories";
 import { usePlants } from "@/hooks/usePlants";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
+import { formatDate } from "@/lib/utils";
 
 interface PracticeListProps {
   userRole: "plant" | "hq";
@@ -60,6 +61,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
 
   // Get practices from API
   const allPractices = practicesData?.data || [];
+  const totalPractices = practicesData?.pagination?.total || 0;
   
   // Filter practices based on user role (plant users see only their plant)
   const practices = useMemo(() => {
@@ -311,7 +313,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
           <CardContent className="p-4">
             <div className="flex items-baseline justify-between">
               <p className="text-sm text-muted-foreground">Total Best Practices</p>
-              <div className="text-2xl font-bold text-primary">{practices.length}</div>
+              <div className="text-2xl font-bold text-primary">{totalPractices}</div>
             </div>
           </CardContent>
         </Card>
@@ -383,7 +385,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                         
                         <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          <span>{practice.submitted_date || practice.submittedDate || "N/A"}</span>
+                          <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
                         </div>
                         
                         {practice.savings_amount && (

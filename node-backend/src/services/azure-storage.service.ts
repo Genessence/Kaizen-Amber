@@ -93,6 +93,35 @@ export class AzureStorageService {
   }
 
   /**
+   * Generate SAS URL for reading a blob (valid for 1 hour)
+   */
+  generateReadSasUrl(blobName: string, fileType: 'image' | 'document'): string {
+    const containerName =
+      fileType === 'image'
+        ? envConfig.AZURE_STORAGE_CONTAINER_PRACTICES
+        : envConfig.AZURE_STORAGE_CONTAINER_DOCUMENTS;
+
+    const containerClient = getContainerClient(containerName);
+    const blobClient = containerClient.getBlockBlobClient(blobName);
+
+    // Generate SAS token (valid for 1 hour)
+    const expiresOn = new Date();
+    expiresOn.setHours(expiresOn.getHours() + 1);
+
+    const sasToken = generateBlobSASQueryParameters(
+      {
+        containerName,
+        blobName,
+        permissions: BlobSASPermissions.parse('r'), // Read permission
+        expiresOn,
+      },
+      this.sharedKeyCredential
+    ).toString();
+
+    return `${blobClient.url}?${sasToken}`;
+  }
+
+  /**
    * Delete a blob
    */
   async deleteBlob(blobName: string, fileType: 'image' | 'document'): Promise<void> {

@@ -35,7 +35,9 @@ import {
   Cpu,
   LineChart,
   Bot,
-  Loader2
+  Loader2,
+  Calendar,
+  AlertCircle
 } from "lucide-react";
 import { CardSkeleton, TableSkeleton, ListSkeleton, StatsCardSkeleton, ChartSkeleton } from "@/components/ui/skeletons";
 import {
@@ -469,49 +471,100 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
 
       {/* Drilldown: Benchmarked BPs */}
       <AlertDialog open={benchmarkedOpen} onOpenChange={setBenchmarkedOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Benchmarked BPs - Copy Spread</AlertDialogTitle>
-            <AlertDialogDescription>
+        <AlertDialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-4">
+          <AlertDialogHeader className="pb-3 border-b">
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-primary" />
+              Benchmarked BPs - Copy Spread
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs mt-2">
               Shows origin plant, which plants copied each BP, and dates. If none copied, you'll see a notice.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-4">
-            {benchmarkedBPs.map((row) => (
-              <div key={row.bp} className="p-3 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{row.bp}</div>
-                  <Badge variant="outline" className="text-xs">Origin: {row.origin}</Badge>
-                </div>
-                <div className="mt-2 overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="py-1">Copied By Plant</th>
-                        <th className="py-1">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {row.copies.map((c, idx) => (
-                        <tr key={idx}>
-                          <td className="py-1">{c.plant}</td>
-                          <td className="py-1">{c.date}</td>
-                        </tr>
-                      ))}
-                      {row.copies.length === 0 && (
-                        <tr>
-                          <td className="py-1 text-muted-foreground" colSpan={2}>This benchmarked BP has not been copied to any plant</td>
-                        </tr>
+          <div className="overflow-y-auto flex-1 min-h-0 -mx-2 px-2 space-y-4 py-4">
+            {benchmarkedBPs.length > 0 ? (
+              benchmarkedBPs.map((row, index) => {
+                // Format date helper
+                const formatDate = (dateString: string) => {
+                  if (!dateString) return 'N/A';
+                  try {
+                    const date = new Date(dateString);
+                    if (isNaN(date.getTime())) return dateString;
+                    return date.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    });
+                  } catch {
+                    return dateString;
+                  }
+                };
+
+                return (
+                  <div 
+                    key={row.bp} 
+                    className="p-4 border-2 rounded-xl bg-gradient-to-br from-primary/5 via-background to-primary/5 hover:shadow-lg transition-all duration-200"
+                    style={{
+                      borderColor: `hsl(var(--primary) / ${0.2 + (index % 3) * 0.1})`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        <div className="font-semibold text-base text-foreground">{row.bp}</div>
+                      </div>
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs px-3 py-1">
+                        <Building2 className="h-3 w-3 mr-1" />
+                        Origin: {row.origin}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 overflow-x-auto">
+                      {row.copies.length > 0 ? (
+                        <div className="space-y-2">
+                          {row.copies.map((c, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-3 rounded-lg bg-card border border-border/50 hover:bg-accent/50 hover:border-primary/30 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <Building2 className="h-4 w-4 text-primary" />
+                                </div>
+                                <div>
+                                  <div className="font-medium text-sm">{c.plant}</div>
+                                  <div className="text-xs text-muted-foreground">Copied</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <Badge variant="secondary" className="text-xs font-medium">
+                                  {formatDate(c.date)}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30 text-center">
+                          <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
+                          <p className="text-sm text-muted-foreground font-medium">
+                            This benchmarked BP has not been copied to any plant yet
+                          </p>
+                        </div>
                       )}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Star className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No benchmarked BPs available</p>
               </div>
-            ))}
+            )}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-            <AlertDialogAction onClick={() => setBenchmarkedOpen(false)}>OK</AlertDialogAction>
+          <AlertDialogFooter className="pt-3 mt-2 border-t">
+            <AlertDialogCancel className="px-6">Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

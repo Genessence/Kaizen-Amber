@@ -8,10 +8,13 @@ export const corsMiddleware = cors({
       ? env.CORS_ORIGINS
       : [env.CORS_ORIGINS];
 
+    console.log('CORS check:', { origin, allowedOrigins, match: !origin || allowedOrigins.includes(origin) });
+
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.error('CORS blocked:', { origin, allowedOrigins });
+      callback(new Error(`Not allowed by CORS. Origin: ${origin}, Allowed: ${allowedOrigins.join(', ')}`));
     }
   },
   credentials: true,

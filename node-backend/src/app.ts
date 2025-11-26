@@ -31,7 +31,16 @@ const createApp = (): Express => {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Logging
+  // Logging - Always log requests for debugging
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, {
+      query: req.query,
+      body: req.method !== 'GET' ? req.body : undefined,
+      origin: req.headers.origin,
+    });
+    next();
+  });
+  
   if (env.DEBUG) {
     app.use(morgan('dev'));
   }

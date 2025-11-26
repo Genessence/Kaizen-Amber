@@ -146,6 +146,24 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
     if (!category.trim()) return "Please select a Category.";
     if (!problemStatement.trim()) return "Please enter Problem Statement.";
     if (!solution.trim()) return "Please enter Solution Description.";
+    
+    // Documents are required if selected
+    if (supportingDocs.length > 0) {
+      // Check if any documents are invalid (e.g., too large, wrong type)
+      for (const doc of supportingDocs) {
+        const maxSize = 20 * 1024 * 1024; // 20MB
+        if (doc.size > maxSize) {
+          return `Document "${doc.name}" is too large. Maximum size is 20MB.`;
+        }
+        
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx'];
+        const fileExtension = '.' + doc.name.split('.').pop()?.toLowerCase();
+        if (!allowedExtensions.includes(fileExtension)) {
+          return `Document "${doc.name}" has an invalid file type. Allowed types: PDF, DOC, DOCX, PPT, PPTX.`;
+        }
+      }
+    }
+    
     return "";
   };
 
@@ -336,77 +354,89 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
       // Upload images if they exist (images are optional, so failures don't block submission)
       if (beforeImage) {
         try {
+          console.log('[BestPracticeForm] Uploading before image for practice:', result.id, {
+            fileName: beforeImage.name,
+            fileSize: beforeImage.size,
+            fileType: beforeImage.type,
+          });
           await apiService.uploadPracticeImage(result.id, beforeImage, 'before');
+          console.log('[BestPracticeForm] Before image uploaded successfully');
           toast.success('Before image uploaded successfully');
         } catch (error) {
-          console.error('Failed to upload before image:', error);
+          console.error('[BestPracticeForm] Failed to upload before image:', error);
           uploadErrors.push('Before image');
-          toast.error('Failed to upload before image');
+          toast.error(`Failed to upload before image: ${error instanceof Error ? error.message : 'Unknown error'}`);
           // Images are optional, so don't block submission
         }
+      } else {
+        console.log('[BestPracticeForm] No before image to upload');
       }
 
       if (afterImage) {
         try {
+          console.log('[BestPracticeForm] Uploading after image for practice:', result.id, {
+            fileName: afterImage.name,
+            fileSize: afterImage.size,
+            fileType: afterImage.type,
+          });
           await apiService.uploadPracticeImage(result.id, afterImage, 'after');
+          console.log('[BestPracticeForm] After image uploaded successfully');
           toast.success('After image uploaded successfully');
         } catch (error) {
-          console.error('Failed to upload after image:', error);
+          console.error('[BestPracticeForm] Failed to upload after image:', error);
           uploadErrors.push('After image');
-          toast.error('Failed to upload after image');
+          toast.error(`Failed to upload after image: ${error instanceof Error ? error.message : 'Unknown error'}`);
           // Images are optional, so don't block submission
         }
+      } else {
+        console.log('[BestPracticeForm] No after image to upload');
       }
 
-      // Upload documents if they exist - ALL must succeed for successful submission
+      // Upload documents if they exist - if documents are selected, they MUST upload successfully
       if (supportingDocs.length > 0) {
-        toast.info(`Uploading ${supportingDocs.length} document(s)...`);
+        toast.info(`Uploading ${supportingDocs.length} document(s). Please wait...`);
+        
+        let documentsUploaded = 0;
+        const failedDocuments: string[] = [];
         
         // Upload documents sequentially to ensure proper error handling
+        // If any document fails, block submission
         for (const doc of supportingDocs) {
           try {
+            console.log(`[BestPracticeForm] Uploading document ${documentsUploaded + 1}/${supportingDocs.length}:`, {
+              fileName: doc.name,
+              fileSize: doc.size,
+              fileType: doc.type,
+            });
+            
             await apiService.uploadPracticeDocument(result.id, doc);
-            toast.success(`Document "${doc.name}" uploaded successfully`);
+            documentsUploaded++;
+            toast.success(`Document "${doc.name}" uploaded successfully (${documentsUploaded}/${supportingDocs.length})`);
           } catch (error: any) {
-            console.error(`Failed to upload document ${doc.name}:`, error);
+            console.error(`[BestPracticeForm] Failed to upload document ${doc.name}:`, error);
             const errorMessage = error?.message || 'Unknown error';
+            failedDocuments.push(doc.name);
             uploadErrors.push(`Document: ${doc.name}`);
             toast.error(`Failed to upload document "${doc.name}": ${errorMessage}`);
-            submissionSuccessful = false;
-            // Stop uploading remaining documents if one fails
-            break;
           }
         }
 
-        // If any document failed, prevent submission
-        if (!submissionSuccessful) {
-          const failedNames = uploadErrors
-            .filter(e => e.startsWith('Document:'))
-            .map(e => e.replace('Document: ', ''))
-            .join(', ');
-          
-          const errorMessage = `Failed to upload document(s): ${failedNames}. Submission cannot be completed.`;
-          
-          toast.error(errorMessage);
-          toast.warning('Please fix the document upload issue and try again. The practice has not been submitted.');
-          
-          // Store practice ID for potential retry
-          console.log('Practice ID for document retry:', result.id);
+        // If ANY document failed, block submission completely
+        if (failedDocuments.length > 0) {
+          const failedNames = failedDocuments.join(', ');
+          const errorMsg = `Failed to upload ${failedDocuments.length} document(s): ${failedNames}. Practice submission cannot be completed.`;
+          toast.error(errorMsg, { duration: 5000 });
+          toast.warning('Please fix the document upload issue and try again. The practice has not been submitted.', { duration: 5000 });
           
           // Reset submitting state and return early - DO NOT navigate
           setIsSubmitting(false);
           return;
         }
 
-        if (supportingDocs.length > 0) {
-          toast.success(`All ${supportingDocs.length} document(s) uploaded successfully`);
+        // All documents uploaded successfully
+        if (documentsUploaded === supportingDocs.length && supportingDocs.length > 0) {
+          toast.success(`All ${supportingDocs.length} document(s) uploaded successfully!`, { duration: 3000 });
         }
-      }
-
-      // Only proceed if submission is successful (all documents uploaded)
-      if (!submissionSuccessful) {
-        setIsSubmitting(false);
-        return;
       }
 
       // Show success message if all uploads completed
@@ -480,7 +510,12 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
 
   const handleDocsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
-    setSupportingDocs(files);
+    if (files.length > 0) {
+      setSupportingDocs(files);
+      toast.success(`${files.length} file(s) selected`);
+    } else {
+      setSupportingDocs([]);
+    }
   };
   // Use categories from API instead of hardcoded list
   const categories = useMemo(() => {
@@ -806,29 +841,72 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
             <Label>Supporting Documents (Optional)</Label>
             <Card className="border-dashed border-2 border-muted-foreground/30">
               <CardContent className="p-4">
-                <div className="flex items-center justify-center space-x-4">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
+                <div className="flex flex-col items-center justify-center space-y-3">
+                  <Upload className="h-10 w-10 text-muted-foreground" />
                   <div className="text-center">
                     <p className="text-sm font-medium">Upload supporting documents</p>
-                    <p className="text-xs text-muted-foreground">Process charts, procedures, training materials (PDF, DOC, PPT)</p>
+                    <p className="text-xs text-muted-foreground">Process charts, procedures, training materials (PDF, DOC, DOCX, PPT, PPTX)</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 font-medium">
+                      ⚠️ Documents are required if selected - submission will fail if upload fails
+                    </p>
                   </div>
-                <input
-                  ref={docsInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleDocsChange}
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
-                />
-                <Button variant="outline" size="sm" onClick={() => docsInputRef.current?.click()}>
+                  <input
+                    ref={docsInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleDocsChange}
+                    accept=".pdf,.doc,.docx,.ppt,.pptx"
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      if (docsInputRef.current) {
+                        docsInputRef.current.click();
+                      }
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
                     Browse Files
                   </Button>
                 </div>
-              {supportingDocs.length > 0 && (
-                <div className="mt-3 text-xs text-muted-foreground text-center">
-                  Selected: {supportingDocs.map((f) => f.name).join(", ")}
-                </div>
-              )}
+                {supportingDocs.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground mb-2">
+                      Selected Files ({supportingDocs.length}):
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {supportingDocs.map((file, index) => (
+                        <div 
+                          key={index}
+                          className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
+                        >
+                          <span className="flex-1 truncate mr-2">{file.name}</span>
+                          <span className="text-muted-foreground">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 ml-2"
+                            onClick={() => {
+                              const newFiles = supportingDocs.filter((_, i) => i !== index);
+                              setSupportingDocs(newFiles);
+                              // Reset input to allow selecting the same file again
+                              if (docsInputRef.current) {
+                                docsInputRef.current.value = '';
+                              }
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -887,16 +965,17 @@ const BestPracticeForm = ({ preFillData, pendingCopyMeta, onSubmit }: BestPracti
                 className="bg-gradient-primary hover:bg-gradient-primary/90 shadow-medium hover:shadow-strong transition-smooth" 
                 onClick={handleSubmit}
                 disabled={isSubmitting || createMutation.isPending}
+                title={supportingDocs.length > 0 ? "Documents must be uploaded successfully to submit" : ""}
               >
                 {isSubmitting || createMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
+                    {supportingDocs.length > 0 ? "Uploading & Submitting..." : "Submitting..."}
                   </>
                 ) : (
                   <>
                     <Send className="h-4 w-4 mr-2" />
-                    Submit
+                    Submit{supportingDocs.length > 0 ? ` (${supportingDocs.length} doc${supportingDocs.length > 1 ? 's' : ''})` : ''}
                   </>
                 )}
               </Button>

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/skeletons";
 import { KeyboardEvent, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   AlertDialog,
@@ -1165,7 +1165,7 @@ const PlantUserDashboard = ({
                       {bpSpreadRows.map((r, idx) => (
                         <tr key={idx}>
                           <td className="py-1">{r.plant}</td>
-                          <td className="py-1">{r.date}</td>
+                          <td className="py-1">{formatDate(r.date)}</td>
                         </tr>
                       ))}
                       {bpSpreadRows.length === 0 && (
@@ -1912,7 +1912,7 @@ const PlantUserDashboard = ({
                         <tr key={idx}>
                           <td className="py-1">{row.title}</td>
                           <td className="py-1">{row.points}</td>
-                          <td className="py-1">{row.date}</td>
+                          <td className="py-1">{formatDate(row.date)}</td>
                         </tr>
                       ))}
                       {(!lbDrillData || lbDrillData.copied.length === 0) && (

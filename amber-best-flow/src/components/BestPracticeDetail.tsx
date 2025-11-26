@@ -31,6 +31,7 @@ import { useSocket } from "@/contexts/SocketContext";
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { formatDate } from "@/lib/utils";
 
 interface BestPracticeDetailProps {
   userRole: "plant" | "hq";
@@ -306,7 +307,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Submitted</p>
-                <p className="text-sm text-muted-foreground">{practice.submittedDate}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatDate(practice.submittedDate || practice.submitted_date)}
+                </p>
               </div>
             </div>
           </div>
@@ -368,7 +371,13 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
                 ) : (() => {
-                  const beforeImage = practice.images?.find(img => img.image_type === 'before');
+                  // Use imagesData directly from the hook instead of practice.images
+                  const beforeImage = imagesData.find(img => img.image_type === 'before');
+                  console.log('Before image check:', { 
+                    imagesDataLength: imagesData.length, 
+                    beforeImage, 
+                    practiceId 
+                  });
                   return beforeImage?.blob_url ? (
                     <div className="rounded-lg overflow-hidden border bg-muted/20">
                       <img 
@@ -376,8 +385,15 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                         alt="Before Implementation" 
                         className="w-full h-auto object-contain max-h-96"
                         onError={(e) => {
-                          console.error('Failed to load before image:', beforeImage.blob_url);
+                          console.error('Failed to load before image:', {
+                            url: beforeImage.blob_url,
+                            imageId: beforeImage.id,
+                            practiceId
+                          });
                           e.currentTarget.style.display = 'none';
+                        }}
+                        onLoad={() => {
+                          console.log('Before image loaded successfully:', beforeImage.blob_url);
                         }}
                       />
                     </div>
@@ -385,6 +401,11 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
                       <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
                       <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                      {imagesData.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Found {imagesData.length} image(s), but no "before" image
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -400,7 +421,13 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
                 ) : (() => {
-                  const afterImage = practice.images?.find(img => img.image_type === 'after');
+                  // Use imagesData directly from the hook instead of practice.images
+                  const afterImage = imagesData.find(img => img.image_type === 'after');
+                  console.log('After image check:', { 
+                    imagesDataLength: imagesData.length, 
+                    afterImage, 
+                    practiceId 
+                  });
                   return afterImage?.blob_url ? (
                     <div className="rounded-lg overflow-hidden border bg-success/5">
                       <img 
@@ -408,8 +435,15 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                         alt="After Implementation" 
                         className="w-full h-auto object-contain max-h-96"
                         onError={(e) => {
-                          console.error('Failed to load after image:', afterImage.blob_url);
+                          console.error('Failed to load after image:', {
+                            url: afterImage.blob_url,
+                            imageId: afterImage.id,
+                            practiceId
+                          });
                           e.currentTarget.style.display = 'none';
+                        }}
+                        onLoad={() => {
+                          console.log('After image loaded successfully:', afterImage.blob_url);
                         }}
                       />
                     </div>
@@ -417,6 +451,11 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
                       <ImageIcon className="h-12 w-12 mx-auto text-success" />
                       <p className="text-sm text-muted-foreground mt-2">No image available</p>
+                      {imagesData.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Found {imagesData.length} image(s), but no "after" image
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -554,70 +593,6 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <p className="text-muted-foreground">{practice.implementation || "Not specified"}</p>
           </div>
 
-          {/* Supporting Documents */}
-          <div>
-            <h4 className="font-medium mb-3">Supporting Documents</h4>
-            {practice.documents && Array.isArray(practice.documents) && practice.documents.length > 0 ? (
-              <div className="space-y-2">
-                {practice.documents.map((doc: any) => {
-                  // Format file size
-                  const formatFileSize = (bytes: number): string => {
-                    if (bytes === 0) return '0 Bytes';
-                    const k = 1024;
-                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-                    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-                  };
-
-                  // Get file icon based on content type
-                  const getFileIcon = (contentType: string) => {
-                    if (contentType?.includes('pdf')) return '📄';
-                    if (contentType?.includes('word') || contentType?.includes('document')) return '📝';
-                    if (contentType?.includes('powerpoint') || contentType?.includes('presentation')) return '📊';
-                    if (contentType?.includes('excel') || contentType?.includes('spreadsheet')) return '📈';
-                    return '📎';
-                  };
-
-                  return (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3 flex-1">
-                        <span className="text-2xl">{getFileIcon(doc.content_type)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{doc.document_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(doc.file_size || 0)}
-                            {doc.content_type && ` • ${doc.content_type.split('/')[1]?.toUpperCase() || 'File'}`}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (doc.blob_url) {
-                            window.open(doc.blob_url, '_blank');
-                          }
-                        }}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
-                <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                  <FileText className="h-5 w-5" />
-                  <p className="text-sm">No supporting documents available</p>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Approved info removed */}
         </CardContent>
@@ -729,7 +704,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                       <div className="flex items-center space-x-2 mb-1">
                         <p className="font-medium text-sm">{q.asked_by_name}</p>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(q.created_at).toLocaleDateString()}
+                          {formatDate(q.created_at)}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground">{q.question_text}</p>
@@ -745,7 +720,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                         </p>
                         {q.answered_at && (
                           <span className="text-xs text-muted-foreground">
-                            {new Date(q.answered_at).toLocaleDateString()}
+                            {formatDate(q.answered_at)}
                           </span>
                         )}
                       </div>

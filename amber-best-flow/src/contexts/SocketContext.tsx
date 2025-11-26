@@ -27,6 +27,11 @@ export const SocketProvider = ({ children }: SocketProviderProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  
+  // Helper to sync connection state from socket
+  const syncConnectionState = (socketInstance: Socket) => {
+    setIsConnected(socketInstance.connected);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -56,12 +61,16 @@ export const SocketProvider = ({ children }: SocketProviderProps) => {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: maxReconnectAttempts,
+      autoConnect: true,
     });
+
+    // Sync initial connection state (socket might connect immediately)
+    syncConnectionState(newSocket);
 
     // Connection event handlers
     newSocket.on('connect', () => {
       console.log('Socket connected:', newSocket.id);
-      setIsConnected(true);
+      syncConnectionState(newSocket);
       reconnectAttempts.current = 0;
     });
 
@@ -78,12 +87,33 @@ export const SocketProvider = ({ children }: SocketProviderProps) => {
 
     newSocket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
+      setIsConnected(false);
       reconnectAttempts.current += 1;
       
       if (reconnectAttempts.current >= maxReconnectAttempts) {
         console.error('Max reconnection attempts reached');
-        setIsConnected(false);
       }
+    });
+
+    // Listen for reconnection attempts
+    newSocket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`Reconnection attempt ${attemptNumber}`);
+    });
+
+    newSocket.on('reconnect', (attemptNumber) => {
+      console.log(`Reconnected after ${attemptNumber} attempts`);
+      syncConnectionState(newSocket);
+      reconnectAttempts.current = 0;
+    });
+
+    newSocket.on('reconnect_error', (error) => {
+      console.error('Reconnection error:', error);
+      setIsConnected(false);
+    });
+
+    newSocket.on('reconnect_failed', () => {
+      console.error('Reconnection failed');
+      setIsConnected(false);
     });
 
     setSocket(newSocket);

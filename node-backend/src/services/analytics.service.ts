@@ -736,7 +736,6 @@ export class AnalyticsService {
       monthlyData[monthKey].count += 1;
     });
 
-<<<<<<< HEAD
     // Convert to array and calculate stars with cumulative YTD
     const sortedMonths = Object.keys(monthlyData).sort();
     let cumulativeYTD = 0;
@@ -760,27 +759,6 @@ export class AnalyticsService {
         stars,
       };
     });
-=======
-    // Calculate YTD savings for each month
-    let ytdSavings = new Prisma.Decimal(0);
-    
-    // Convert to array and calculate stars
-    return Object.keys(monthlyData)
-      .sort()
-      .map((monthKey) => {
-        const [year, month] = monthKey.split('-');
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthlySavings = new Prisma.Decimal(monthlyData[monthKey].savings);
-        ytdSavings = ytdSavings.add(monthlySavings);
-        const stars = this.calculateStarRating(monthlySavings, ytdSavings, currency);
-
-        return {
-          month: `${monthNames[parseInt(month) - 1]} ${year}`,
-          savings: this.formatCurrency(monthlySavings, currency),
-          stars,
-        };
-      });
->>>>>>> 10-featuredownload-button-with-correct-format
   }
 }
 

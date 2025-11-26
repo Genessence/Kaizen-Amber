@@ -20,10 +20,7 @@ import {
   Clock,
   Shield,
   Loader2,
-<<<<<<< HEAD
-  IndianRupee
-=======
->>>>>>> 10-featuredownload-button-with-correct-format
+  IndianRupee,
 } from "lucide-react";
 import {
   useBenchmarkPractice,
@@ -66,18 +63,19 @@ const BestPracticeDetail = ({
   // Get current user
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
-<<<<<<< HEAD
-  
+
   // Determine practice ID - prioritize URL param, then prop, then apiPractice
   const practiceIdFromProps = propPractice?.id;
-  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(urlId || practiceIdFromProps);
-  
+  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(
+    urlId || practiceIdFromProps
+  );
+
   // Get practice ID - URL param takes precedence, then apiPractice, then propPractice
   const practiceId = urlId || apiPractice?.id || propPractice?.id;
-  
+
   // Debug logging
   useEffect(() => {
-    console.log('[BestPracticeDetail] Practice ID:', {
+    console.log("[BestPracticeDetail] Practice ID:", {
       practiceId,
       apiPracticeId: apiPractice?.id,
       propPracticeId: propPractice?.id,
@@ -85,18 +83,7 @@ const BestPracticeDetail = ({
       hasPropPractice: !!propPractice,
     });
   }, [practiceId, apiPractice?.id, propPractice?.id]);
-  
-=======
 
-  // Fetch full practice details if we have an ID
-  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(
-    propPractice?.id
-  );
-
-  // Get practice ID for questions hook
-  const practiceId = apiPractice?.id || propPractice?.id;
-
->>>>>>> 10-featuredownload-button-with-correct-format
   // Fetch questions for this practice
   const { data: questionsData = [], isLoading: questionsLoading } =
     usePracticeQuestions(practiceId);
@@ -132,12 +119,15 @@ const BestPracticeDetail = ({
   }, [socket, practiceId, isConnected, queryClient]);
 
   // Fetch images for this practice
-<<<<<<< HEAD
-  const { data: imagesData = [], isLoading: imagesLoading, error: imagesError } = usePracticeImages(practiceId);
-  
+  const {
+    data: imagesData = [],
+    isLoading: imagesLoading,
+    error: imagesError,
+  } = usePracticeImages(practiceId);
+
   // Debug logging for images
   useEffect(() => {
-    console.log('[BestPracticeDetail] Images data:', {
+    console.log("[BestPracticeDetail] Images data:", {
       practiceId,
       imagesCount: imagesData?.length || 0,
       imagesData,
@@ -145,12 +135,7 @@ const BestPracticeDetail = ({
       error: imagesError,
     });
   }, [practiceId, imagesData, imagesLoading, imagesError]);
-  
-=======
-  const { data: imagesData = [], isLoading: imagesLoading } =
-    usePracticeImages(practiceId);
 
->>>>>>> 10-featuredownload-button-with-correct-format
   // Fetch documents for this practice
   const { data: documentsData = [], isLoading: documentsLoading } =
     usePracticeDocuments(practiceId);
@@ -190,64 +175,6 @@ const BestPracticeDetail = ({
   };
 
   // Use API data if available, otherwise use prop data
-<<<<<<< HEAD
-  const practice = (apiPractice || propPractice) ? {
-    id: (apiPractice || propPractice).id || "BP-001",
-    title: (apiPractice || propPractice).title || "Best Practice",
-    category: (apiPractice || propPractice).category_name || (apiPractice || propPractice).category || "Other",
-    submittedBy: (apiPractice || propPractice).submitted_by_name || (apiPractice || propPractice).submittedBy || "Unknown",
-    submitted_by_user_id: (apiPractice || propPractice).submitted_by_user_id,
-    plant: (apiPractice || propPractice).plant_name || (apiPractice || propPractice).plant || "Unknown Plant",
-    submittedDate: (apiPractice || propPractice).submitted_date || (apiPractice || propPractice).submittedDate || (apiPractice || propPractice).date || new Date().toISOString().split('T')[0],
-    approvedDate: (apiPractice || propPractice).approvedDate,
-    approvedBy: (apiPractice || propPractice).approvedBy,
-    copiedToPlants: (apiPractice || propPractice).copiedToPlants || [],
-    description: (apiPractice || propPractice).description || "",
-    problemStatement: (apiPractice || propPractice).problem_statement || (apiPractice || propPractice).problemStatement || "",
-    solution: (apiPractice || propPractice).solution || "",
-    benefits: Array.isArray((apiPractice || propPractice).benefits) ? (apiPractice || propPractice).benefits : [],
-    metrics: (apiPractice || propPractice).metrics || "",
-    implementation: (apiPractice || propPractice).implementation || "",
-    investment: (apiPractice || propPractice).investment || "",
-    questions: (apiPractice || propPractice).question_count || (apiPractice || propPractice).questions || 0,
-    savings: (apiPractice || propPractice).savings,
-    savingsAmount: (apiPractice || propPractice).savings_amount,
-    savingsCurrency: (apiPractice || propPractice).savings_currency || 'lakhs',
-    savingsPeriod: (apiPractice || propPractice).savings_period || 'monthly',
-    areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented || "",
-    beforeImage: (apiPractice || propPractice).beforeImage,
-    afterImage: (apiPractice || propPractice).afterImage,
-    is_benchmarked: (apiPractice || propPractice).is_benchmarked ?? isBenchmarked,
-    images: imagesData.length > 0 ? imagesData : ((apiPractice || propPractice).images || []),
-    documents: (apiPractice || propPractice).documents || []
-  } : {
-    id: "BP-001",
-    title: "Automated Quality Inspection System Implementation",
-    category: "Quality",
-    // removed approval status concept
-    submittedBy: "Rajesh Kumar",
-    plant: "Greater Noida (Ecotech 1)",
-    submittedDate: "2025-01-15",
-    approvedDate: "2025-01-18",
-    approvedBy: "Priya Sharma (HQ Admin)",
-    copiedToPlants: [
-      "Kanchipuram",
-      "Rajpura"
-    ],
-    description: "Implementation of an automated quality inspection system using computer vision to detect defects in manufactured components, reducing manual inspection time and improving accuracy.",
-    problemStatement: "Manual quality inspection was time-consuming, prone to human error, and created bottlenecks in the production line. Inspectors were spending 3-4 hours daily on repetitive visual checks.",
-    solution: "Deployed AI-powered computer vision system with high-resolution cameras at key inspection points. The system uses machine learning algorithms trained on defect patterns to automatically identify and classify defects.",
-    benefits: [
-      "95% reduction in inspection time",
-      "99.2% accuracy in defect detection",
-      "Eliminated production bottlenecks",
-      "Freed up 3 inspectors for other quality activities"
-    ],
-    metrics: "Cost savings: ₹2.5L annually, Time saved: 20 hours/week, Defect detection improved by 15%",
-    implementation: "Project completed in 6 weeks with IT team collaboration. Total investment: ₹8L with 4-month ROI.",
-    questions: 0
-  };
-=======
   const practice =
     apiPractice || propPractice
       ? {
@@ -292,6 +219,11 @@ const BestPracticeDetail = ({
             (apiPractice || propPractice).questions ||
             0,
           savings: (apiPractice || propPractice).savings,
+          savingsAmount: (apiPractice || propPractice).savings_amount,
+          savingsCurrency:
+            (apiPractice || propPractice).savings_currency || "lakhs",
+          savingsPeriod:
+            (apiPractice || propPractice).savings_period || "monthly",
           areaImplemented:
             (apiPractice || propPractice).area_implemented ||
             (apiPractice || propPractice).areaImplemented ||
@@ -335,7 +267,6 @@ const BestPracticeDetail = ({
             "Project completed in 6 weeks with IT team collaboration. Total investment: ₹8L with 4-month ROI.",
           questions: 0,
         };
->>>>>>> 10-featuredownload-button-with-correct-format
 
   // Handle asking a question
   const handleAskQuestion = async () => {
@@ -531,9 +462,7 @@ const BestPracticeDetail = ({
               <div>
                 <p className="text-sm font-medium">Submitted</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(
-                    practice.submittedDate || practice.submitted_date
-                  )}
+                  {formatDate(practice.submittedDate)}
                 </p>
               </div>
             </div>
@@ -606,49 +535,18 @@ const BestPracticeDetail = ({
                       Loading image...
                     </p>
                   </div>
-<<<<<<< HEAD
                 ) : imagesError ? (
                   <div className="bg-destructive/10 rounded-lg p-8 mb-3 text-center">
                     <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-                    <p className="text-sm text-destructive mt-2">Error loading images</p>
-                    <p className="text-xs text-muted-foreground mt-1">{imagesError instanceof Error ? imagesError.message : 'Unknown error'}</p>
+                    <p className="text-sm text-destructive mt-2">
+                      Error loading images
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {imagesError instanceof Error
+                        ? imagesError.message
+                        : "Unknown error"}
+                    </p>
                   </div>
-                ) : (() => {
-                  // Use imagesData directly from the hook instead of practice.images
-                  const beforeImage = imagesData.find(img => img.image_type === 'before');
-                  console.log('Before image check:', { 
-                    imagesDataLength: imagesData.length, 
-                    beforeImage, 
-                    practiceId,
-                    allImages: imagesData
-                  });
-                  return beforeImage?.blob_url ? (
-                    <div className="rounded-lg overflow-hidden border bg-muted/20">
-                      <img 
-                        src={beforeImage.blob_url} 
-                        alt="Before Implementation" 
-                        className="w-full h-auto object-contain max-h-96"
-                        onError={(e) => {
-                          console.error('Failed to load before image:', {
-                            url: beforeImage.blob_url,
-                            imageId: beforeImage.id,
-                            practiceId
-                          });
-                          e.currentTarget.style.display = 'none';
-                        }}
-                        onLoad={() => {
-                          console.log('Before image loaded successfully:', beforeImage.blob_url);
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
-                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mt-2">No image available</p>
-                      {imagesData.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Found {imagesData.length} image(s), but no "before" image
-=======
                 ) : (
                   (() => {
                     // Use imagesData directly from the hook instead of practice.images
@@ -659,6 +557,7 @@ const BestPracticeDetail = ({
                       imagesDataLength: imagesData.length,
                       beforeImage,
                       practiceId,
+                      allImages: imagesData,
                     });
                     return beforeImage?.blob_url ? (
                       <div className="rounded-lg overflow-hidden border bg-muted/20">
@@ -687,7 +586,6 @@ const BestPracticeDetail = ({
                         <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground" />
                         <p className="text-sm text-muted-foreground mt-2">
                           No image available
->>>>>>> 10-featuredownload-button-with-correct-format
                         </p>
                         {imagesData.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
@@ -714,49 +612,18 @@ const BestPracticeDetail = ({
                       Loading image...
                     </p>
                   </div>
-<<<<<<< HEAD
                 ) : imagesError ? (
                   <div className="bg-destructive/10 rounded-lg p-8 mb-3 text-center">
                     <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-                    <p className="text-sm text-destructive mt-2">Error loading images</p>
-                    <p className="text-xs text-muted-foreground mt-1">{imagesError instanceof Error ? imagesError.message : 'Unknown error'}</p>
+                    <p className="text-sm text-destructive mt-2">
+                      Error loading images
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {imagesError instanceof Error
+                        ? imagesError.message
+                        : "Unknown error"}
+                    </p>
                   </div>
-                ) : (() => {
-                  // Use imagesData directly from the hook instead of practice.images
-                  const afterImage = imagesData.find(img => img.image_type === 'after');
-                  console.log('After image check:', { 
-                    imagesDataLength: imagesData.length, 
-                    afterImage, 
-                    practiceId,
-                    allImages: imagesData
-                  });
-                  return afterImage?.blob_url ? (
-                    <div className="rounded-lg overflow-hidden border bg-success/5">
-                      <img 
-                        src={afterImage.blob_url} 
-                        alt="After Implementation" 
-                        className="w-full h-auto object-contain max-h-96"
-                        onError={(e) => {
-                          console.error('Failed to load after image:', {
-                            url: afterImage.blob_url,
-                            imageId: afterImage.id,
-                            practiceId
-                          });
-                          e.currentTarget.style.display = 'none';
-                        }}
-                        onLoad={() => {
-                          console.log('After image loaded successfully:', afterImage.blob_url);
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
-                      <ImageIcon className="h-12 w-12 mx-auto text-success" />
-                      <p className="text-sm text-muted-foreground mt-2">No image available</p>
-                      {imagesData.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Found {imagesData.length} image(s), but no "after" image
-=======
                 ) : (
                   (() => {
                     // Use imagesData directly from the hook instead of practice.images
@@ -767,6 +634,7 @@ const BestPracticeDetail = ({
                       imagesDataLength: imagesData.length,
                       afterImage,
                       practiceId,
+                      allImages: imagesData,
                     });
                     return afterImage?.blob_url ? (
                       <div className="rounded-lg overflow-hidden border bg-success/5">
@@ -795,7 +663,6 @@ const BestPracticeDetail = ({
                         <ImageIcon className="h-12 w-12 mx-auto text-success" />
                         <p className="text-sm text-muted-foreground mt-2">
                           No image available
->>>>>>> 10-featuredownload-button-with-correct-format
                         </p>
                         {imagesData.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
@@ -979,11 +846,14 @@ const BestPracticeDetail = ({
                   <span className="text-2xl font-bold text-primary">
                     ₹{practice.savingsAmount}
                   </span>
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary">
-                    {practice.savingsCurrency === 'crores' ? 'Crores' : 'Lakhs'}
+                  <Badge
+                    variant="outline"
+                    className="bg-primary/10 text-primary border-primary"
+                  >
+                    {practice.savingsCurrency === "crores" ? "Crores" : "Lakhs"}
                   </Badge>
                   <Badge variant="outline" className="bg-secondary/10">
-                    {practice.savingsPeriod || 'Monthly'}
+                    {practice.savingsPeriod || "Monthly"}
                   </Badge>
                 </div>
               </div>

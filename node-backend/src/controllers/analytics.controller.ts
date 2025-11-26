@@ -4,10 +4,7 @@ import { analyticsService } from '../services/analytics.service';
 import { savingsCalculatorService } from '../services/savings-calculator.service';
 import { NotFoundError } from '../utils/errors';
 import { Prisma } from '@prisma/client';
-<<<<<<< HEAD
-=======
 import { Decimal } from '@prisma/client/runtime/library';
->>>>>>> 10-featuredownload-button-with-correct-format
 
 export class AnalyticsController {
   /**
@@ -595,71 +592,8 @@ export class AnalyticsController {
     try {
       const year = parseInt(req.body.year as string) || new Date().getFullYear();
 
-<<<<<<< HEAD
       // Use the savings calculator service to recalculate for all plants
       await savingsCalculatorService.recalculateAllPlantsSavings(year);
-=======
-      // Recalculate monthly savings for all plants
-      const plants = await prisma.plant.findMany({
-        where: { isActive: true },
-      });
-
-      for (const plant of plants) {
-        let ytdSavings = new Prisma.Decimal(0);
-        
-        for (let month = 1; month <= 12; month++) {
-          const practices = await prisma.bestPractice.findMany({
-            where: {
-              plantId: plant.id,
-              isDeleted: false,
-              status: 'approved',
-              submittedDate: {
-                gte: new Date(year, month - 1, 1),
-                lt: new Date(year, month, 1),
-              },
-            },
-          });
-
-          const monthlySavings = practices.reduce(
-            (sum, p) => sum.add(p.savingsAmount || new Prisma.Decimal(0)),
-            new Prisma.Decimal(0)
-          );
-
-          // Accumulate YTD savings
-          ytdSavings = ytdSavings.add(monthlySavings);
-
-          // Calculate stars using BOTH monthly and YTD thresholds
-          const stars = analyticsService.calculateStarRating(
-            monthlySavings,
-            ytdSavings,
-            'lakhs'
-          );
-
-          await prisma.monthlySavings.upsert({
-            where: {
-              plantId_year_month: {
-                plantId: plant.id,
-                year,
-                month,
-              },
-            },
-            update: {
-              totalSavings: monthlySavings,
-              practiceCount: practices.length,
-              stars,
-            },
-            create: {
-              plantId: plant.id,
-              year,
-              month,
-              totalSavings: monthlySavings,
-              practiceCount: practices.length,
-              stars,
-            },
-          });
-        }
-      }
->>>>>>> 10-featuredownload-button-with-correct-format
 
       res.json({
         success: true,

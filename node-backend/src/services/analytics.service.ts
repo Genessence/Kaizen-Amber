@@ -1,6 +1,5 @@
 import prisma from '../config/database';
 import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsService {
   /**

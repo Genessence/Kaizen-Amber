@@ -263,7 +263,7 @@ export class BenchmarkingController {
   /**
    * Get total benchmarked count
    */
-  async getTotalBenchmarkedCount(req: Request, res: Response, next: NextFunction) {
+  async getTotalBenchmarkedCount(_req: Request, res: Response, next: NextFunction) {
     try {
       const total = await prisma.benchmarkedPractice.count({
         where: {

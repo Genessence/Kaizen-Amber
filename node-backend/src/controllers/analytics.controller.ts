@@ -152,8 +152,6 @@ export class AnalyticsController {
 
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
-      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
       // Get all active plants
       const plants = await prisma.plant.findMany({
@@ -264,7 +262,7 @@ export class AnalyticsController {
    */
   async getCostAnalysis(req: Request, res: Response, next: NextFunction) {
     try {
-      const currency = (req.query.currency as string) || 'lakhs';
+      const _currency = (req.query.currency as string) || 'lakhs';
 
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
@@ -570,7 +568,7 @@ export class AnalyticsController {
           });
 
           const monthlySavings = practices.reduce(
-            (sum, p) => sum + (p.savingsAmount || new Prisma.Decimal(0)),
+            (sum, p) => sum.add(p.savingsAmount || new Prisma.Decimal(0)),
             new Prisma.Decimal(0)
           );
 

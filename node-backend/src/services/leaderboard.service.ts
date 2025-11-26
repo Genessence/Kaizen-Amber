@@ -8,7 +8,7 @@ export class LeaderboardService {
    */
   async awardCopyPoints(
     originalPracticeId: string,
-    copiedPracticeId: string,
+    _copiedPracticeId: string,
     copyingPlantId: string
   ): Promise<void> {
     const currentYear = new Date().getFullYear();

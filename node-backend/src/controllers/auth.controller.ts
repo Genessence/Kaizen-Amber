@@ -13,7 +13,7 @@ export class AuthController {
     try {
       console.log('Login attempt:', { email: req.body.email, timestamp: new Date().toISOString() });
       
-      const { email, password, remember_me } = req.body;
+      const { email, password } = req.body;
 
       if (!email || !password) {
         console.log('Login failed: Missing email or password');
@@ -213,7 +213,7 @@ export class AuthController {
   /**
    * Logout (client-side token removal, but we can add token blacklisting here)
    */
-  async logout(req: Request, res: Response) {
+  async logout(_req: Request, res: Response) {
     // In a production system, you might want to blacklist tokens here
     res.json({ message: 'Logged out successfully' });
   }

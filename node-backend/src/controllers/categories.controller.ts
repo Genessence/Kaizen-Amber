@@ -6,7 +6,7 @@ export class CategoriesController {
   /**
    * List all categories with practice counts
    */
-  async listCategories(req: Request, res: Response, next: NextFunction) {
+  async listCategories(_req: Request, res: Response, next: NextFunction) {
     try {
       const categories = await prisma.category.findMany({
         orderBy: { name: 'asc' },

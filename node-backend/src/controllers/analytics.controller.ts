@@ -4,6 +4,7 @@ import { analyticsService } from '../services/analytics.service';
 import { savingsCalculatorService } from '../services/savings-calculator.service';
 import { NotFoundError } from '../utils/errors';
 import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsController {
   /**
@@ -146,14 +147,11 @@ export class AnalyticsController {
   async getCostSavings(req: Request, res: Response, next: NextFunction) {
     try {
       const period = (req.query.period as string) || 'yearly';
-      const currency = (req.query.currency as string) || 'lakhs';
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
       const month = parseInt(req.query.month as string);
 
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
-      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
       // Get all active plants
       const plants = await prisma.plant.findMany({
@@ -262,10 +260,8 @@ export class AnalyticsController {
   /**
    * Get cost analysis
    */
-  async getCostAnalysis(req: Request, res: Response, next: NextFunction) {
+  async getCostAnalysis(_req: Request, res: Response, next: NextFunction) {
     try {
-      const currency = (req.query.currency as string) || 'lakhs';
-
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
       const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
@@ -470,7 +466,8 @@ export class AnalyticsController {
         ],
       });
 
-      const plantRatings = new Map<string, { plant: any; stars: number; savings: Prisma.Decimal }>();
+      const currentMonth = new Date().getMonth() + 1;
+      const plantRatings = new Map<string, { plant: any; stars: number; savings: Prisma.Decimal; monthlySavings: Prisma.Decimal }>();
 
       monthlySavings.forEach((ms) => {
         const key = ms.plantId;
@@ -481,18 +478,23 @@ export class AnalyticsController {
               name: ms.plant.name,
             },
             stars: 0,
-            savings: Prisma.Decimal(0),
+            savings: new Prisma.Decimal(0),
+            monthlySavings: new Prisma.Decimal(0),
           });
         }
 
         const entry = plantRatings.get(key)!;
         entry.savings = entry.savings.add(ms.totalSavings);
+        // Track current month savings
+        if (ms.month === currentMonth && ms.year === year) {
+          entry.monthlySavings = ms.totalSavings;
+        }
       });
 
       res.json(
         Array.from(plantRatings.values()).map((entry) => ({
           plant: entry.plant,
-          stars: analyticsService.calculateStarRating(entry.savings, currency),
+          stars: analyticsService.calculateStarRating(entry.monthlySavings, entry.savings, currency),
           savings: analyticsService.formatCurrency(entry.savings, currency),
         }))
       );

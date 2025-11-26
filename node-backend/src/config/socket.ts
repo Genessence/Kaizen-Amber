@@ -1,7 +1,6 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import { verifyAccessToken } from '../utils/jwt';
-import type { TokenPayload } from '../utils/jwt';
 import env from './env';
 
 interface AuthenticatedSocket {
@@ -53,7 +52,6 @@ export const initializeSocket = (httpServer: HTTPServer): SocketIOServer => {
   io.on('connection', (socket) => {
     const userId = (socket as any).userId;
     const userRole = (socket as any).userRole;
-    const plantId = (socket as any).plantId;
 
     console.log(`Socket connected: ${socket.id} (User: ${userId}, Role: ${userRole})`);
 

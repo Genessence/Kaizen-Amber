@@ -5,9 +5,9 @@ import env from '../config/env';
 
 export const errorHandler = (
   err: Error | AppError,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   // Zod validation errors
   if (err instanceof ZodError) {
@@ -39,11 +39,14 @@ export const errorHandler = (
         detail: 'Record not found',
       });
     }
+    return res.status(500).json({
+      detail: 'Database error',
+    });
   }
 
   // Unknown errors
   console.error('Unhandled error:', err);
-  res.status(500).json({
+  return res.status(500).json({
     detail: env.DEBUG ? err.message : 'Internal server error',
   });
 };

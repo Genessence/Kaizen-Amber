@@ -4,6 +4,10 @@ import { analyticsService } from '../services/analytics.service';
 import { savingsCalculatorService } from '../services/savings-calculator.service';
 import { NotFoundError } from '../utils/errors';
 import { Prisma } from '@prisma/client';
+<<<<<<< HEAD
+=======
+import { Decimal } from '@prisma/client/runtime/library';
+>>>>>>> 10-featuredownload-button-with-correct-format
 
 export class AnalyticsController {
   /**
@@ -146,14 +150,11 @@ export class AnalyticsController {
   async getCostSavings(req: Request, res: Response, next: NextFunction) {
     try {
       const period = (req.query.period as string) || 'yearly';
-      const currency = (req.query.currency as string) || 'lakhs';
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
       const month = parseInt(req.query.month as string);
 
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
-      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
       // Get all active plants
       const plants = await prisma.plant.findMany({
@@ -262,10 +263,8 @@ export class AnalyticsController {
   /**
    * Get cost analysis
    */
-  async getCostAnalysis(req: Request, res: Response, next: NextFunction) {
+  async getCostAnalysis(_req: Request, res: Response, next: NextFunction) {
     try {
-      const currency = (req.query.currency as string) || 'lakhs';
-
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
       const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
@@ -470,7 +469,8 @@ export class AnalyticsController {
         ],
       });
 
-      const plantRatings = new Map<string, { plant: any; stars: number; savings: Prisma.Decimal }>();
+      const currentMonth = new Date().getMonth() + 1;
+      const plantRatings = new Map<string, { plant: any; stars: number; savings: Prisma.Decimal; monthlySavings: Prisma.Decimal }>();
 
       monthlySavings.forEach((ms) => {
         const key = ms.plantId;
@@ -481,18 +481,23 @@ export class AnalyticsController {
               name: ms.plant.name,
             },
             stars: 0,
-            savings: Prisma.Decimal(0),
+            savings: new Prisma.Decimal(0),
+            monthlySavings: new Prisma.Decimal(0),
           });
         }
 
         const entry = plantRatings.get(key)!;
         entry.savings = entry.savings.add(ms.totalSavings);
+        // Track current month savings
+        if (ms.month === currentMonth && ms.year === year) {
+          entry.monthlySavings = ms.totalSavings;
+        }
       });
 
       res.json(
         Array.from(plantRatings.values()).map((entry) => ({
           plant: entry.plant,
-          stars: analyticsService.calculateStarRating(entry.savings, currency),
+          stars: analyticsService.calculateStarRating(entry.monthlySavings, entry.savings, currency),
           savings: analyticsService.formatCurrency(entry.savings, currency),
         }))
       );
@@ -590,8 +595,71 @@ export class AnalyticsController {
     try {
       const year = parseInt(req.body.year as string) || new Date().getFullYear();
 
+<<<<<<< HEAD
       // Use the savings calculator service to recalculate for all plants
       await savingsCalculatorService.recalculateAllPlantsSavings(year);
+=======
+      // Recalculate monthly savings for all plants
+      const plants = await prisma.plant.findMany({
+        where: { isActive: true },
+      });
+
+      for (const plant of plants) {
+        let ytdSavings = new Prisma.Decimal(0);
+        
+        for (let month = 1; month <= 12; month++) {
+          const practices = await prisma.bestPractice.findMany({
+            where: {
+              plantId: plant.id,
+              isDeleted: false,
+              status: 'approved',
+              submittedDate: {
+                gte: new Date(year, month - 1, 1),
+                lt: new Date(year, month, 1),
+              },
+            },
+          });
+
+          const monthlySavings = practices.reduce(
+            (sum, p) => sum.add(p.savingsAmount || new Prisma.Decimal(0)),
+            new Prisma.Decimal(0)
+          );
+
+          // Accumulate YTD savings
+          ytdSavings = ytdSavings.add(monthlySavings);
+
+          // Calculate stars using BOTH monthly and YTD thresholds
+          const stars = analyticsService.calculateStarRating(
+            monthlySavings,
+            ytdSavings,
+            'lakhs'
+          );
+
+          await prisma.monthlySavings.upsert({
+            where: {
+              plantId_year_month: {
+                plantId: plant.id,
+                year,
+                month,
+              },
+            },
+            update: {
+              totalSavings: monthlySavings,
+              practiceCount: practices.length,
+              stars,
+            },
+            create: {
+              plantId: plant.id,
+              year,
+              month,
+              totalSavings: monthlySavings,
+              practiceCount: practices.length,
+              stars,
+            },
+          });
+        }
+      }
+>>>>>>> 10-featuredownload-button-with-correct-format
 
       res.json({
         success: true,

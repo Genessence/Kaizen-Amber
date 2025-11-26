@@ -106,7 +106,7 @@ export class PlantsController {
   /**
    * Get active plants only
    */
-  async getActivePlants(req: Request, res: Response, next: NextFunction) {
+  async getActivePlants(_req: Request, res: Response, next: NextFunction) {
     try {
       const plants = await prisma.plant.findMany({
         where: { isActive: true },

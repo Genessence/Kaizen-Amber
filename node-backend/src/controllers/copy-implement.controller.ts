@@ -63,7 +63,7 @@ export class CopyImplementController {
           plantId: userPlantId,
           problemStatement: problem_statement || originalPractice.problemStatement,
           solution: solution || originalPractice.solution,
-          benefits: originalPractice.benefits,
+          benefits: originalPractice.benefits as any,
           metrics: originalPractice.metrics,
           implementation: originalPractice.implementation,
           investment: originalPractice.investment,
@@ -99,7 +99,7 @@ export class CopyImplementController {
         title: copiedPractice.title,
         original_practice_id,
         copying_plant: {
-          id: copiedPractice.plant.id,
+          id: copiedPractice.plantId,
           name: copiedPractice.plant.name,
         },
         copied_date: copyRelation.copiedDate.toISOString(),

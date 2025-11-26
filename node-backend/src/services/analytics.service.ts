@@ -1,6 +1,5 @@
 import prisma from '../config/database';
 import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsService {
   /**
@@ -92,12 +91,19 @@ export class AnalyticsService {
 
   /**
    * Get dashboard overview
+   * If plantId is provided, filters data for that specific plant
    */
-  async getDashboardOverview(currency: string = 'lakhs') {
+  async getDashboardOverview(currency: string = 'lakhs', plantId?: string) {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
     const startOfYear = new Date(currentYear, 0, 1);
+
+    // Build base where clause - filter by plantId if provided
+    const baseWhere: { isDeleted: boolean; plantId?: string } = { isDeleted: false };
+    if (plantId) {
+      baseWhere.plantId = plantId;
+    }
 
     // Run all count queries in parallel for better performance
     const [
@@ -108,11 +114,11 @@ export class AnalyticsService {
       benchmarkedCount,
     ] = await Promise.all([
       prisma.bestPractice.count({
-        where: { isDeleted: false },
+        where: baseWhere,
       }),
       prisma.bestPractice.count({
         where: {
-          isDeleted: false,
+          ...baseWhere,
           submittedDate: {
             gte: startOfMonth,
             lt: new Date(currentYear, currentMonth, 1),
@@ -121,7 +127,7 @@ export class AnalyticsService {
       }),
       prisma.bestPractice.count({
         where: {
-          isDeleted: false,
+          ...baseWhere,
           submittedDate: {
             gte: startOfYear,
           },
@@ -129,7 +135,7 @@ export class AnalyticsService {
       }),
       prisma.bestPractice.aggregate({
         where: {
-          isDeleted: false,
+          ...baseWhere,
           status: { in: ['submitted', 'approved'] },
           savingsAmount: { not: null },
         },
@@ -138,7 +144,7 @@ export class AnalyticsService {
       prisma.benchmarkedPractice.count({
         where: {
           practice: {
-            isDeleted: false,
+            ...baseWhere,
           },
         },
       }),
@@ -146,12 +152,48 @@ export class AnalyticsService {
 
     const totalSavings = savingsResult._sum.savingsAmount || new Prisma.Decimal(0);
 
+    // Calculate star rating if plantId is provided (plant-specific dashboard)
+    let stars = 0;
+    if (plantId) {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      
+      // Get monthly and YTD savings for this plant
+      const monthlySavingsRecord = await prisma.monthlySavings.findUnique({
+        where: {
+          plantId_year_month: {
+            plantId,
+            year: currentYear,
+            month: currentMonth,
+          },
+        },
+      });
+
+      const ytdSavingsRecords = await prisma.monthlySavings.groupBy({
+        by: ['plantId'],
+        where: {
+          plantId,
+          year: currentYear,
+        },
+        _sum: {
+          totalSavings: true,
+        },
+      });
+
+      const monthlySavings = monthlySavingsRecord?.totalSavings || new Prisma.Decimal(0);
+      const ytdSavings = ytdSavingsRecords[0]?._sum.totalSavings || new Prisma.Decimal(0);
+      
+      stars = this.calculateStarRating(monthlySavings, ytdSavings, currency);
+    }
+
     return {
       total_practices: totalPractices,
       this_month_practices: thisMonthPractices,
       ytd_practices: ytdPractices,
+      this_month_savings: plantId ? this.formatCurrency(totalSavings, currency) : '0', // For plant users, show monthly savings
       total_savings: this.formatCurrency(totalSavings, currency),
       benchmarked_count: benchmarkedCount,
+      stars,
     };
   }
 
@@ -173,15 +215,15 @@ export class AnalyticsService {
       benchmarkStats,
       recentPractices,
     ] = await Promise.all([
-      this.getDashboardOverview(currency),
+      this.getDashboardOverview(currency, plantId), // Pass plantId to filter overview
       this.getLeaderboardSummary(),
       this.getCopySpreadSummary(),
-      this.getCategoryBreakdownSummary(),
+      this.getCategoryBreakdownSummary(plantId), // Pass plantId to filter categories
       this.getRecentBenchmarkedSummary(),
       this.getStarRatingsSummary(currency),
       this.getPlantPerformanceSummary(),
       this.getBenchmarkStatsSummary(),
-      this.getRecentPracticesSummary(4),
+      this.getRecentPracticesSummary(4, plantId), // Pass plantId to filter recent practices
     ]);
     
     // Include plant-specific data if plantId provided (run in parallel)
@@ -345,7 +387,7 @@ export class AnalyticsService {
     }));
   }
 
-  private async getCategoryBreakdownSummary() {
+  private async getCategoryBreakdownSummary(plantId?: string) {
     // Optimize: Use _count instead of loading all practices
     const categories = await prisma.category.findMany({
       select: {
@@ -359,6 +401,7 @@ export class AnalyticsService {
             practices: {
               where: {
                 isDeleted: false,
+                ...(plantId ? { plantId } : {}),
               },
             },
           },
@@ -565,15 +608,26 @@ export class AnalyticsService {
       .sort((a, b) => b.benchmarked_count - a.benchmarked_count);
   }
 
-  private async getRecentPracticesSummary(limit: number = 4) {
-    const practices = await prisma.bestPractice.findMany({
-      where: {
-        isDeleted: false,
-        // Show all submitted practices (not just approved) - users want to see latest submissions
-        status: {
-          in: ['submitted', 'approved'], // Include both submitted and approved practices
-        },
+  private async getRecentPracticesSummary(limit: number = 4, plantId?: string) {
+    const whereClause: {
+      isDeleted: boolean;
+      status: { in: string[] };
+      plantId?: string;
+    } = {
+      isDeleted: false,
+      // Show all submitted practices (not just approved) - users want to see latest submissions
+      status: {
+        in: ['submitted', 'approved'], // Include both submitted and approved practices
       },
+    };
+
+    // Filter by plantId if provided (for plant users)
+    if (plantId) {
+      whereClause.plantId = plantId;
+    }
+
+    const practices = await prisma.bestPractice.findMany({
+      where: whereClause,
       include: {
         category: {
           select: { name: true },
@@ -687,8 +741,6 @@ export class AnalyticsService {
     let cumulativeYTD = 0;
     
     return sortedMonths.map((monthKey) => {
-      const [year, month] = monthKey.split('-');
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlySavings = monthlyData[monthKey].savings;
       
       // Calculate cumulative YTD (sum from Jan to current month)
@@ -702,7 +754,7 @@ export class AnalyticsService {
       );
 
       return {
-        month: `${monthNames[parseInt(month) - 1]} ${year}`,
+        month: monthKey, // Return "YYYY-MM" format for consistent parsing
         savings: this.formatCurrency(new Prisma.Decimal(monthlySavings), currency),
         stars,
       };

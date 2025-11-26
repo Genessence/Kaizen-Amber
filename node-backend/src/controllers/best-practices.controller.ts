@@ -28,6 +28,13 @@ export class BestPracticesController {
         isDeleted: false,
       };
 
+      // Auto-filter by plant for plant users if no explicit plant_id provided
+      // This ensures plant users only see practices from their own plant
+      // HQ admins can see all practices unless they explicitly filter
+      if (req.user?.role === 'plant' && !plantId) {
+        where.plantId = req.user.plantId;
+      }
+
       if (search) {
         where.OR = [
           { title: { contains: search, mode: 'insensitive' } },

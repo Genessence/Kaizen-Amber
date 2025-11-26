@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Clock,
   Shield,
-  Loader2
+  Loader2,
+  IndianRupee
 } from "lucide-react";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 import { useBestPractice } from "@/hooks/useBestPractices";
@@ -29,7 +30,7 @@ import { usePracticeDocuments } from "@/hooks/usePracticeDocuments";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
 
@@ -43,15 +44,28 @@ interface BestPracticeDetailProps {
 const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, onToggleBenchmark }: BestPracticeDetailProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { id: urlId } = useParams<{ id: string }>();
   // Get current user
   const { user } = useAuth();
   const { socket, isConnected } = useSocket();
   
-  // Fetch full practice details if we have an ID
-  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(propPractice?.id);
+  // Determine practice ID - prioritize URL param, then prop, then apiPractice
+  const practiceIdFromProps = propPractice?.id;
+  const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(urlId || practiceIdFromProps);
   
-  // Get practice ID for questions hook
-  const practiceId = apiPractice?.id || propPractice?.id;
+  // Get practice ID - URL param takes precedence, then apiPractice, then propPractice
+  const practiceId = urlId || apiPractice?.id || propPractice?.id;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[BestPracticeDetail] Practice ID:', {
+      practiceId,
+      apiPracticeId: apiPractice?.id,
+      propPracticeId: propPractice?.id,
+      hasApiPractice: !!apiPractice,
+      hasPropPractice: !!propPractice,
+    });
+  }, [practiceId, apiPractice?.id, propPractice?.id]);
   
   // Fetch questions for this practice
   const { data: questionsData = [], isLoading: questionsLoading } = usePracticeQuestions(practiceId);
@@ -87,7 +101,18 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   }, [socket, practiceId, isConnected, queryClient]);
   
   // Fetch images for this practice
-  const { data: imagesData = [], isLoading: imagesLoading } = usePracticeImages(practiceId);
+  const { data: imagesData = [], isLoading: imagesLoading, error: imagesError } = usePracticeImages(practiceId);
+  
+  // Debug logging for images
+  useEffect(() => {
+    console.log('[BestPracticeDetail] Images data:', {
+      practiceId,
+      imagesCount: imagesData?.length || 0,
+      imagesData,
+      isLoading: imagesLoading,
+      error: imagesError,
+    });
+  }, [practiceId, imagesData, imagesLoading, imagesError]);
   
   // Fetch documents for this practice
   const { data: documentsData = [], isLoading: documentsLoading } = usePracticeDocuments(practiceId);
@@ -147,6 +172,9 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
     investment: (apiPractice || propPractice).investment || "",
     questions: (apiPractice || propPractice).question_count || (apiPractice || propPractice).questions || 0,
     savings: (apiPractice || propPractice).savings,
+    savingsAmount: (apiPractice || propPractice).savings_amount,
+    savingsCurrency: (apiPractice || propPractice).savings_currency || 'lakhs',
+    savingsPeriod: (apiPractice || propPractice).savings_period || 'monthly',
     areaImplemented: (apiPractice || propPractice).area_implemented || (apiPractice || propPractice).areaImplemented || "",
     beforeImage: (apiPractice || propPractice).beforeImage,
     afterImage: (apiPractice || propPractice).afterImage,
@@ -370,13 +398,20 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <Loader2 className="h-12 w-12 mx-auto text-muted-foreground animate-spin" />
                     <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
+                ) : imagesError ? (
+                  <div className="bg-destructive/10 rounded-lg p-8 mb-3 text-center">
+                    <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
+                    <p className="text-sm text-destructive mt-2">Error loading images</p>
+                    <p className="text-xs text-muted-foreground mt-1">{imagesError instanceof Error ? imagesError.message : 'Unknown error'}</p>
+                  </div>
                 ) : (() => {
                   // Use imagesData directly from the hook instead of practice.images
                   const beforeImage = imagesData.find(img => img.image_type === 'before');
                   console.log('Before image check:', { 
                     imagesDataLength: imagesData.length, 
                     beforeImage, 
-                    practiceId 
+                    practiceId,
+                    allImages: imagesData
                   });
                   return beforeImage?.blob_url ? (
                     <div className="rounded-lg overflow-hidden border bg-muted/20">
@@ -420,13 +455,20 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <Loader2 className="h-12 w-12 mx-auto text-success animate-spin" />
                     <p className="text-sm text-muted-foreground mt-2">Loading image...</p>
                   </div>
+                ) : imagesError ? (
+                  <div className="bg-destructive/10 rounded-lg p-8 mb-3 text-center">
+                    <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
+                    <p className="text-sm text-destructive mt-2">Error loading images</p>
+                    <p className="text-xs text-muted-foreground mt-1">{imagesError instanceof Error ? imagesError.message : 'Unknown error'}</p>
+                  </div>
                 ) : (() => {
                   // Use imagesData directly from the hook instead of practice.images
                   const afterImage = imagesData.find(img => img.image_type === 'after');
                   console.log('After image check:', { 
                     imagesDataLength: imagesData.length, 
                     afterImage, 
-                    practiceId 
+                    practiceId,
+                    allImages: imagesData
                   });
                   return afterImage?.blob_url ? (
                     <div className="rounded-lg overflow-hidden border bg-success/5">
@@ -584,6 +626,29 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div>
               <h4 className="font-medium mb-2">Investment in the Best Practice</h4>
               <p className="text-muted-foreground">{practice.investment}</p>
+            </div>
+          )}
+
+          {/* Savings Information */}
+          {practice.savingsAmount && (
+            <div>
+              <h4 className="font-medium mb-2 flex items-center gap-2">
+                <IndianRupee className="h-4 w-4 text-primary" />
+                Monthly Savings
+              </h4>
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-primary">
+                    ₹{practice.savingsAmount}
+                  </span>
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary">
+                    {practice.savingsCurrency === 'crores' ? 'Crores' : 'Lakhs'}
+                  </Badge>
+                  <Badge variant="outline" className="bg-secondary/10">
+                    {practice.savingsPeriod || 'Monthly'}
+                  </Badge>
+                </div>
+              </div>
             </div>
           )}
 

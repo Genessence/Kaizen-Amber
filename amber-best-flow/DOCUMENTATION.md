@@ -37,15 +37,45 @@ The **Amber Best Practice & Benchmarking Portal** is a comprehensive web applica
 - View analytics for their plant
 
 ### 2. HQ Admin
-**Description**: Headquarters administrators who review, approve, and benchmark best practices across all plants.
+**Description**: Headquarters administrators who review and benchmark exceptional best practices across all plants.
 
 **Capabilities**:
-- Review and approve/reject best practices
-- Benchmark exceptional practices
+- Review submitted best practices from all plants
+- Benchmark exceptional practices for company-wide visibility
 - View company-wide analytics and metrics
-- Monitor plant performance
+- Monitor plant performance and star ratings
+- Facilitate knowledge sharing across plants
 - Track cost savings and star ratings
 - Manage active/inactive plants
+
+### System Design Philosophy
+
+**Trust-Based Submission Model**
+
+QuoteFlow Pro operates on a trust-based knowledge sharing model:
+
+**Why No Approval Gate?**
+- **Speed**: Best practices are shared immediately, not delayed by approval queues
+- **Encouragement**: Plant users are empowered to share without fear of rejection
+- **Agility**: Knowledge flows rapidly across the organization
+- **Simplicity**: Fewer workflow steps mean easier adoption
+
+**Quality Control Through Benchmarking**
+
+Instead of approval gates, quality is indicated through:
+- **Benchmarking**: HQ highlights exceptional practices
+- **Star Ratings**: Automatic calculation based on savings impact
+- **Copy Metrics**: Popular practices naturally rise through usage
+- **Q&A System**: Community validates practices through questions
+
+**Analytics Immediately Reflect Reality**
+
+- Submitted practices count in plant analytics right away
+- Savings calculations include all submitted practices
+- Plant performance metrics update in real-time
+- Star ratings calculated automatically based on monthly/YTD savings
+
+This approach prioritizes **knowledge velocity** over **gatekeeping**, while still maintaining quality through visibility, metrics, and community engagement.
 
 ---
 
@@ -313,24 +343,31 @@ The **Amber Best Practice & Benchmarking Portal** is a comprehensive web applica
 
 ---
 
-#### US-014: Review and Approve Best Practices
+#### US-014: Review and Benchmark Best Practices
 **As an** HQ Admin  
 **I want to** review submitted best practices  
-**So that** I can approve them for benchmarking
+**So that** I can benchmark exceptional ones for company-wide visibility
 
 **Acceptance Criteria**:
-- User can navigate to "Benchmark BP's" page
-- User can see a list of practices requiring review with:
+- User can navigate to "Practice Approvals" page
+- User can see list of submitted practices with:
   - Title
   - Category
   - Plant
   - Submitted date
-  - Status (Pending, Approved, Revision Required)
+  - Benchmarked status
+  - Monthly savings information
 - User can click on any practice to view full details
-- User can approve a practice
-- User can request revisions
-- User can benchmark an approved practice
+- User can benchmark a practice (marks it as exceptional)
+- User can unbenchmark a practice if needed
+- Benchmarked practices appear in "Latest Benchmark BPs" section
 - User can see Q&A section if questions exist
+- All submitted practices count in analytics immediately
+
+**Technical Notes**:
+- Practices with status 'submitted' are immediately included in analytics
+- Benchmarking is a quality seal, not an approval gate
+- Savings calculations include all submitted and approved practices
 
 ---
 
@@ -414,13 +451,20 @@ The **Amber Best Practice & Benchmarking Portal** is a comprehensive web applica
 - User can click on any plant row to see:
   - Monthly breakdown of savings and stars
   - 12-month trend
+- User can click info button to view star rating criteria
 - Star calculation based on:
-  - Both monthly and YTD thresholds
-  - 5 stars: YTD > 200L and Monthly > 16L
-  - 4 stars: YTD 150-200L and Monthly 12-16L
-  - 3 stars: YTD 100-150L and Monthly 8-12L
-  - 2 stars: YTD 50-100L and Monthly 4-8L
-  - 1 star: YTD > 50L and Monthly > 4L
+  - **Both monthly AND YTD thresholds must be met**
+  - **5 stars**: YTD > 200L AND Monthly > 16L
+  - **4 stars**: YTD ∈ (150, 200] AND Monthly ∈ (12, 16]
+  - **3 stars**: YTD ∈ (100, 150] AND Monthly ∈ (8, 12]
+  - **2 stars**: YTD ∈ (50, 100] AND Monthly ∈ (4, 8]
+  - **1 star**: YTD ∈ (0, 50] AND Monthly ∈ (0, 4]
+  - **0 stars**: YTD = 0 OR Monthly = 0
+- **Examples**:
+  - 16L monthly + 200L YTD = 4 stars (at upper boundary)
+  - 17L monthly + 201L YTD = 5 stars (exceeds 4-star threshold)
+  - 20L monthly + 60L YTD = 2 stars (limited by YTD)
+  - 5L monthly + 30L YTD = 1 star (both in 1-star range)
 
 ---
 
@@ -765,20 +809,55 @@ The **Amber Best Practice & Benchmarking Portal** is a comprehensive web applica
   - Can copy and implement
   - Can view details
 
-#### Approval Workflow
+#### Benchmarking Workflow
 - **HQ Admin Review**:
-  - List of practices requiring review
+  - List of all submitted practices from all plants
   - Status indicators:
-    - Pending
-    - Approved
-    - Revision Required
-  - Can approve/reject
-  - Can request revisions
-  - Can benchmark approved practices
+    - Draft (not yet submitted)
+    - Submitted (visible to all, counts in analytics)
+    - Approved (optional status for manual marking)
+  - Benchmarking actions:
+    - Benchmark practice (marks as exceptional)
+    - Unbenchmark practice (remove benchmark status)
+  - All submitted practices:
+    - Count in plant savings and analytics immediately
+    - Are visible to all plants for copying
+    - Can be benchmarked at any time by HQ
+
+**Trust-Based System**:
+- Plant submissions are trusted upon submission
+- No approval gate delays analytics or visibility
+- Benchmarking serves as a quality seal for exceptional practices
+- Encourages rapid knowledge sharing across organization
+
+#### Practice Status Field
+
+The `status` field exists in the database with these values:
+- **`draft`**: Practice created but not submitted (not counted in analytics)
+- **`submitted`**: Practice submitted by plant user (counts in analytics immediately)
+- **`approved`**: Optional status for manual marking by HQ (currently unused in workflow)
+- **`revision_required`**: Defined but not used in current trust-based system
+
+**Current Workflow**:
+```
+draft → submitted → [can be benchmarked]
+                 ↓
+          (counts in analytics)
+```
+
+**Note**: The approval workflow mentioned in earlier documentation drafts was not implemented. The system operates on a trust-based model where submitted practices immediately count in analytics and are available for copying.
 
 ---
 
 ### 5. Analytics & Reporting
+
+**Analytics Calculation Rules**:
+- Practices with status `'submitted'` or `'approved'` are included in savings calculations
+- Draft practices are excluded from analytics
+- Savings are calculated and normalized to lakhs automatically
+- Star ratings are calculated monthly based on both monthly and YTD thresholds
+- MonthlySavings table is auto-updated when practices are created, updated, or deleted
+- All calculations happen in real-time - no approval delays
 
 #### Yearly Analytics
 - **Bar Chart**:
@@ -991,7 +1070,7 @@ src/
 ├── components/
 │   ├── ui/              # shadcn/ui components
 │   ├── Analytics.tsx    # Analytics page
-│   ├── ApprovalsList.tsx # Approval workflow
+│   ├── ApprovalsList.tsx # Submitted practices review and benchmarking
 │   ├── BenchmarkedList.tsx # Benchmark list
 │   ├── BestPracticeDetail.tsx # Practice details
 │   ├── BestPracticeForm.tsx # Submit form
@@ -1047,14 +1126,14 @@ src/
 
 ### Flow 3: HQ Admin Reviews and Benchmarks
 1. Admin logs in → HQ Admin Dashboard
-2. Navigates to "Benchmark BP's"
-3. Views list of pending practices
-4. Clicks on a practice to view details
-5. Reviews all information
-6. Approves the practice
-7. Toggles benchmark status
-8. Practice appears in "Latest Benchmark BPs"
-9. Practice becomes available for copying
+2. Navigates to "Practice Approvals" (review submitted practices)
+3. Views list of submitted practices from all plants
+4. Clicks on a practice to view full details
+5. Reviews information (problem, solution, savings, images)
+6. Clicks "Benchmark" to mark as exceptional
+7. Practice appears in "Latest Benchmark BPs" section
+8. Practice was already available for copying (immediately upon submission)
+9. Benchmarked practices get highlighted visibility across all plants
 
 ### Flow 4: View Cost Analysis
 1. User navigates to "Analytics" page

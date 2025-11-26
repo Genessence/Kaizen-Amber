@@ -37,9 +37,11 @@ import {
   Bot,
   Loader2,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Info
 } from "lucide-react";
 import { CardSkeleton, TableSkeleton, ListSkeleton, StatsCardSkeleton, ChartSkeleton } from "@/components/ui/skeletons";
+import StarRatingInfo from "@/components/StarRatingInfo";
 import {
   ChartContainer,
   ChartTooltip,
@@ -124,6 +126,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   const [starDrillPlant, setStarDrillPlant] = useState<string | null>(null);
   const [starDrillPlantId, setStarDrillPlantId] = useState<string | null>(null);
   const [starDrillData, setStarDrillData] = useState<{ month: string; savings: number; stars: number }[]>([]);
+  // star rating info dialog
+  const [starRatingInfoOpen, setStarRatingInfoOpen] = useState(false);
   
   // Use API data with fallback to props
   const actualThisMonthTotal = overview?.monthly_count ?? thisMonthTotal ?? 187;
@@ -920,10 +924,21 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
         <Card className="shadow-card">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center space-x-2">
-                <Star className="h-5 w-5 text-primary" />
-                <span>Star Ratings (Savings)</span>
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center space-x-2">
+                  <Star className="h-5 w-5 text-primary" />
+                  <span>Star Ratings (Savings)</span>
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setStarRatingInfoOpen(true)}
+                  title="View star rating criteria"
+                >
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
               <ToggleGroup
                 type="single"
                 value={starRatingsFormat}
@@ -1694,6 +1709,30 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             <AlertDialogCancel>Close</AlertDialogCancel>
             <AlertDialogAction onClick={() => setActivePlantsDialogOpen(false)}>
               Done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Star Rating Info Dialog */}
+      <AlertDialog open={starRatingInfoOpen} onOpenChange={setStarRatingInfoOpen}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+              Star Rating Criteria
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Understand how star ratings are calculated based on monthly and YTD savings
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <StarRatingInfo />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogAction onClick={() => setStarRatingInfoOpen(false)}>
+              Got It
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

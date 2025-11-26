@@ -146,7 +146,6 @@ export class AnalyticsController {
   async getCostSavings(req: Request, res: Response, next: NextFunction) {
     try {
       const period = (req.query.period as string) || 'yearly';
-      const currency = (req.query.currency as string) || 'lakhs';
       const year = parseInt(req.query.year as string) || new Date().getFullYear();
       const month = parseInt(req.query.month as string);
 
@@ -262,8 +261,6 @@ export class AnalyticsController {
    */
   async getCostAnalysis(req: Request, res: Response, next: NextFunction) {
     try {
-      const _currency = (req.query.currency as string) || 'lakhs';
-
       const currentYear = new Date().getFullYear();
       const currentMonth = new Date().getMonth() + 1;
       const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;

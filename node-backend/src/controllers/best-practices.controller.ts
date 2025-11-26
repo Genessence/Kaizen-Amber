@@ -287,9 +287,39 @@ export class BestPracticesController {
         const month = submittedDate.getMonth() + 1;
         
         // Trigger recalculation asynchronously (non-blocking)
+        // Recalculate current month first, then all subsequent months to update YTD correctly
         savingsCalculatorService.recalculatePlantMonthlySavings(plantId, year, month)
+          .then(() => {
+            // After updating current month, recalculate all subsequent months to update YTD
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth() + 1;
+            
+            // Only recalculate future months if we're in the same year
+            if (year === currentYear && month < currentMonth) {
+              // Recalculate all months from (month + 1) to current month to update YTD
+              const recalcPromises = [];
+              for (let m = month + 1; m <= currentMonth; m++) {
+                recalcPromises.push(
+                  savingsCalculatorService.recalculatePlantMonthlySavings(plantId, year, m)
+                    .catch(error => {
+                      console.error(`Failed to recalculate savings for ${year}-${m}:`, error);
+                    })
+                );
+              }
+              return Promise.all(recalcPromises);
+            }
+          })
           .catch(error => {
             console.error('Failed to auto-recalculate savings:', error);
+            // Log more details for debugging
+            console.error('Error details:', {
+              plantId,
+              year,
+              month,
+              practiceId: practice.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
           });
       }
 

@@ -25,8 +25,9 @@ import {
 import { Pie, PieChart, Cell, BarChart, XAxis, YAxis, CartesianGrid, Bar, Label, LabelList } from "recharts";
 import { formatCurrency } from "@/lib/utils";
 import { useBestPractices } from "@/hooks/useBestPractices";
-import { usePlantPerformance, useCostSavings, useCostAnalysis, usePlantMonthlyBreakdown } from "@/hooks/useAnalytics";
+import { usePlantPerformance, useCostSavings, useCostAnalysis, usePlantMonthlyBreakdown, useRecalculateSavings } from "@/hooks/useAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
+import { RefreshCw } from "lucide-react";
 
 interface AnalyticsProps {
   userRole: "plant" | "hq";
@@ -51,6 +52,7 @@ const Analytics = ({ userRole }: AnalyticsProps) => {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
+  const recalculateSavingsMutation = useRecalculateSavings();
 
   // Toggle state for Yearly Analytics - only for HQ admin
   const [yearlyViewMode, setYearlyViewMode] = useState<"yearly" | "currentMonth">("yearly");
@@ -239,6 +241,18 @@ const Analytics = ({ userRole }: AnalyticsProps) => {
               {yearlyCostSavingsViewMode === "yearly" ? "Yearly Cost Savings" : "Monthly Cost Savings"}
             </CardTitle>
             <div className="flex items-center gap-2">
+              {userRole === 'hq' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => recalculateSavingsMutation.mutate(currentYear)}
+                  disabled={recalculateSavingsMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${recalculateSavingsMutation.isPending ? 'animate-spin' : ''}`} />
+                  {recalculateSavingsMutation.isPending ? 'Recalculating...' : 'Recalculate'}
+                </Button>
+              )}
               <ToggleGroup 
                 type="single" 
                 value={yearlyCostSavingsViewMode} 

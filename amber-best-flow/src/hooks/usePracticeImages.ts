@@ -18,7 +18,11 @@ export const usePracticeImages = (practiceId?: string) => {
         console.log('usePracticeImages: Fetching images for practice:', practiceId);
         const images = await apiService.getPracticeImages(practiceId);
         console.log('usePracticeImages: Received images:', images);
-        return images;
+        console.log('usePracticeImages: Images count:', images?.length || 0);
+        if (images && images.length > 0) {
+          console.log('usePracticeImages: Image types:', images.map(img => ({ id: img.id, type: img.image_type, hasUrl: !!img.blob_url })));
+        }
+        return images || [];
       } catch (error) {
         console.error('usePracticeImages: Error fetching images:', error);
         throw error;

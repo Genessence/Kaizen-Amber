@@ -1334,7 +1334,26 @@ class APIService {
    * List practice images
    */
   async getPracticeImages(practiceId: string): Promise<PracticeImage[]> {
-    return this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
+    const images = await this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
+    console.log('[apiService.getPracticeImages] Raw response:', images);
+    
+    // Ensure we return an array and map to correct structure
+    if (!Array.isArray(images)) {
+      console.warn('[apiService.getPracticeImages] Response is not an array:', images);
+      return [];
+    }
+    
+    return images.map((img: any) => ({
+      id: img.id,
+      practice_id: img.practice_id,
+      image_type: img.image_type,
+      blob_container: img.blob_container || '',
+      blob_name: img.blob_name || '',
+      blob_url: img.blob_url || '',
+      file_size: img.file_size || 0,
+      content_type: img.content_type || '',
+      uploaded_at: img.uploaded_at || img.uploadedAt || new Date().toISOString(),
+    }));
   }
 
   /**

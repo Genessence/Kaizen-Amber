@@ -104,6 +104,7 @@ export class SavingsCalculatorService {
   /**
    * Calculate YTD (Year-to-Date) savings for a plant
    * Sums monthly savings from January to the specified month
+   * If monthlySavings table is missing data, calculates directly from practices
    * 
    * @param plantId - Plant UUID
    * @param year - Year
@@ -115,7 +116,7 @@ export class SavingsCalculatorService {
     year: number,
     upToMonth: number
   ): Promise<number> {
-    // Get monthly savings from MonthlySavings table
+    // First try to get from MonthlySavings table (faster)
     const monthlySavingsRecords = await prisma.monthlySavings.findMany({
       where: {
         plantId,
@@ -126,13 +127,59 @@ export class SavingsCalculatorService {
       },
       select: {
         totalSavings: true,
+        month: true,
+      },
+      orderBy: {
+        month: 'asc',
       },
     });
 
-    // Sum up all monthly savings
+    // If we have records for all months, use them
+    if (monthlySavingsRecords.length === upToMonth) {
+      let ytdTotal = 0;
+      for (const record of monthlySavingsRecords) {
+        ytdTotal += Number(record.totalSavings);
+      }
+      return ytdTotal;
+    }
+
+    // Otherwise, calculate directly from practices (more accurate but slower)
+    // This ensures we don't miss any practices that haven't been synced to monthlySavings table
+    const practices = await prisma.bestPractice.findMany({
+      where: {
+        plantId,
+        status: { in: ['submitted', 'approved'] },
+        isDeleted: false,
+        submittedDate: {
+          gte: new Date(year, 0, 1), // Start of year
+          lt: new Date(year, upToMonth, 1), // Start of (upToMonth + 1)
+        },
+      },
+      select: {
+        savingsAmount: true,
+        savingsCurrency: true,
+        savingsPeriod: true,
+      },
+    });
+
+    // Sum up normalized savings
     let ytdTotal = 0;
-    for (const record of monthlySavingsRecords) {
-      ytdTotal += Number(record.totalSavings);
+    for (const practice of practices) {
+      if (practice.savingsAmount && practice.savingsCurrency && practice.savingsPeriod) {
+        // Normalize to lakhs
+        const normalizedAmount = this.normalizeToLakhs(
+          practice.savingsAmount,
+          practice.savingsCurrency
+        );
+        
+        // Convert to monthly if needed
+        const monthlySavings = this.convertToMonthlySavings(
+          normalizedAmount,
+          practice.savingsPeriod
+        );
+        
+        ytdTotal += monthlySavings;
+      }
     }
 
     return ytdTotal;
@@ -156,7 +203,32 @@ export class SavingsCalculatorService {
     const monthlySavings = await this.calculateMonthlySavings(plantId, year, month);
 
     // Calculate YTD savings (cumulative from Jan to current month)
-    const ytdSavings = await this.calculateYTDSavings(plantId, year, month);
+    // First get YTD up to last month from table, then add current month's calculated savings
+    // This ensures we use the most up-to-date data
+    let ytdSavings = 0;
+    if (month > 1) {
+      // Get YTD from table for months before current month
+      const previousMonthsSavings = await prisma.monthlySavings.findMany({
+        where: {
+          plantId,
+          year,
+          month: {
+            lt: month,
+          },
+        },
+        select: {
+          totalSavings: true,
+        },
+      });
+      
+      // Sum previous months
+      for (const record of previousMonthsSavings) {
+        ytdSavings += Number(record.totalSavings);
+      }
+    }
+    
+    // Add current month's calculated savings
+    ytdSavings += monthlySavings;
 
     // Get practice count for this month (count both submitted and approved)
     const practiceCount = await prisma.bestPractice.count({

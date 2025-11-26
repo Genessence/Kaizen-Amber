@@ -992,10 +992,10 @@ class APIService {
     const data = await this.request<any[]>('/analytics/plant-performance?' + params.toString());
     
     return data.map((item) => ({
-      plant_id: item.plant.id,
-      plant_name: item.plant.name,
-      short_name: item.plant.short_name,
-      submitted: item.practice_count || 0,
+      plant_id: item.plant_id,
+      plant_name: item.plant_name,
+      short_name: item.short_name || item.plant_short_name,
+      submitted: item.submitted || item.practice_count || 0,
     }));
   }
 

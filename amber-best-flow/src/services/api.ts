@@ -331,6 +331,11 @@ class APIService {
         question_count: item.question_count || 0,
         submitted_date: item.submitted_date,
         created_at: item.created_at,
+        savings_amount: item.savings_amount || null,
+        savings_currency: item.savings_currency || null,
+        savings_period: item.savings_period || null,
+        area_implemented: item.area_implemented || null,
+        submitted_by_name: item.submitted_by?.full_name || item.submitted_by_name || 'Unknown',
       })),
       pagination: {
         total: response.total,

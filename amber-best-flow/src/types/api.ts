@@ -148,9 +148,11 @@ export interface BestPracticeListItem {
   submitted_by_name: string;
   submitted_date?: string;
   status: PracticeStatus;
-  /** Monthly savings amount (integer only, required) */
-  savings_amount: number;
-  savings_currency: SavingsCurrency;
+  /** Monthly savings amount (integer only, can be null) */
+  savings_amount: number | null;
+  savings_currency: SavingsCurrency | null;
+  savings_period?: SavingsPeriod | null;
+  area_implemented?: string | null;
   is_benchmarked: boolean;
   question_count: number;
   has_images: boolean;

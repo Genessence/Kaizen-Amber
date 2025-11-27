@@ -45,11 +45,11 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [plantFilter, setPlantFilter] = useState<string>("all");
-  const [savingsFilter, setSavingsFilter] = useState<string>("all");
-  const [areaFilter, setAreaFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [minSavings, setMinSavings] = useState<string>("");
+  const [maxSavings, setMaxSavings] = useState<string>("");
   const [processingPracticeId, setProcessingPracticeId] = useState<
     string | null
   >(null);
@@ -103,63 +103,48 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
     [plantsData]
   );
 
-  const uniqueSavings = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          allPractices
-            .map((practice) => {
-              if (!practice.savings_amount) return null;
-              const currency =
-                practice.savings_currency === "crores"
-                  ? "Cr"
-                  : practice.savings_currency === "lakhs"
-                  ? "L"
-                  : "";
-              return `₹${practice.savings_amount}${currency}`;
-            })
-            .filter(Boolean)
-        )
-      ).sort(),
-    [allPractices]
-  );
 
-  const uniqueAreas = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          allPractices
-            .map((practice) => practice.area_implemented)
-            .filter(Boolean)
-        )
-      ).sort(),
-    [allPractices]
-  );
+  // Helper function to convert savings to lakhs for comparison
+  const convertToLakhs = (amount: number | null, currency: string | null): number | null => {
+    if (!amount) return null;
+    if (currency === "crores") {
+      return amount * 100; // Convert crores to lakhs (1 crore = 100 lakhs)
+    }
+    return amount; // Already in lakhs
+  };
 
-  // Apply client-side filters (savings and area filters)
+  // Apply client-side filters
   const filteredPractices = useMemo(() => {
     let filtered = practices;
 
-    // Apply savings filter
-    if (savingsFilter !== "all") {
-      filtered = filtered.filter((practice) => {
-        if (!practice.savings_amount) return false;
-        const currency =
-          practice.savings_currency === "crores"
-            ? "Cr"
-            : practice.savings_currency === "lakhs"
-            ? "L"
-            : "";
-        const savingsStr = `₹${practice.savings_amount}${currency}`;
-        return savingsStr === savingsFilter;
-      });
-    }
+    // Apply savings range filter
+    if (minSavings || maxSavings) {
+      const minValue = minSavings ? parseFloat(minSavings) : null;
+      const maxValue = maxSavings ? parseFloat(maxSavings) : null;
 
-    // Apply area filter
-    if (areaFilter !== "all") {
-      filtered = filtered.filter(
-        (practice) => practice.area_implemented === areaFilter
-      );
+      filtered = filtered.filter((practice) => {
+        if (!practice.savings_amount) return false; // Exclude practices without savings
+        
+        // Convert practice savings to lakhs for comparison
+        const practiceSavingsInLakhs = convertToLakhs(
+          practice.savings_amount,
+          practice.savings_currency || "lakhs"
+        );
+
+        if (practiceSavingsInLakhs === null) return false;
+
+        // Check min filter
+        if (minValue !== null && practiceSavingsInLakhs < minValue) {
+          return false;
+        }
+
+        // Check max filter
+        if (maxValue !== null && practiceSavingsInLakhs > maxValue) {
+          return false;
+        }
+
+        return true;
+      });
     }
 
     // Sort by creation date (newest first) as fallback to ensure correct order
@@ -179,16 +164,16 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
     });
 
     return filtered;
-  }, [practices, savingsFilter, areaFilter]);
+  }, [practices, minSavings, maxSavings]);
 
   const resetFilters = () => {
     setCategoryFilter("all");
     setPlantFilter("all");
-    setSavingsFilter("all");
-    setAreaFilter("all");
     setStartDate("");
     setEndDate("");
     setSearchTerm("");
+    setMinSavings("");
+    setMaxSavings("");
   };
 
   // Removed status concept (approved/revision/pending)
@@ -309,44 +294,6 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">
-                  Savings
-                </p>
-                <Select value={savingsFilter} onValueChange={setSavingsFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All savings" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All savings</SelectItem>
-                    {uniqueSavings.map((savings) => (
-                      <SelectItem key={savings} value={savings}>
-                        {savings}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Area Implemented
-                </p>
-                <Select value={areaFilter} onValueChange={setAreaFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All areas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All areas</SelectItem>
-                    {uniqueAreas.map((area) => (
-                      <SelectItem key={area} value={area}>
-                        {area}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">
                   From date
                 </p>
                 <Input
@@ -365,6 +312,50 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                   value={endDate}
                   onChange={(event) => setEndDate(event.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Min Monthly Savings (in Lakhs)
+                </p>
+                <Input
+                  type="number"
+                  placeholder="e.g., 1"
+                  value={minSavings}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                      setMinSavings(value);
+                    }
+                  }}
+                  min="0"
+                  step="0.01"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter minimum savings amount in lakhs
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Max Monthly Savings (in Lakhs)
+                </p>
+                <Input
+                  type="number"
+                  placeholder="e.g., 100"
+                  value={maxSavings}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                      setMaxSavings(value);
+                    }
+                  }}
+                  min="0"
+                  step="0.01"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter maximum savings amount in lakhs
+                </p>
               </div>
 
               <div className="md:col-span-2 lg:col-span-3 flex justify-end space-x-2">
@@ -475,19 +466,24 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                             <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
                           </div>
                           
-                          {practice.savings_amount && (
-                            <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                              <IndianRupee className="h-3 w-3" />
-                              <span>
-                                ₹{practice.savings_amount}
-                                {practice.savings_currency === "crores"
-                                  ? "Cr"
-                                  : practice.savings_currency === "lakhs"
-                                  ? "L"
-                                  : ""}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                            <IndianRupee className="h-3 w-3" />
+                            <span>
+                              {practice.savings_amount ? (
+                                <>
+                                  ₹{practice.savings_amount}
+                                  {practice.savings_currency === "crores"
+                                    ? "Cr"
+                                    : practice.savings_currency === "lakhs"
+                                    ? "L"
+                                    : ""}
+                                  <span className="ml-1 text-xs opacity-75">/month</span>
+                                </>
+                              ) : (
+                                <span className="opacity-50">N/A</span>
+                              )}
+                            </span>
+                          </div>
 
                           {practice.area_implemented && (
                             <div className="flex items-center space-x-1 text-sm text-muted-foreground">

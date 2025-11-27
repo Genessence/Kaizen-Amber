@@ -1,4 +1,4 @@
-import express, { Express } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
@@ -37,7 +37,7 @@ const createApp = (): Express => {
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Logging - Always log requests for debugging
-  app.use((req, _res, next) => {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, {
       query: req.query,
       body: req.method !== 'GET' ? req.body : undefined,
@@ -51,12 +51,12 @@ const createApp = (): Express => {
   }
 
   // Health check
-  app.get('/health', (_req, res) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // API root endpoint
-  app.get('/api/v1', (_req, res) => {
+  app.get('/api/v1', (_req: Request, res: Response) => {
     res.json({
       name: 'Amber Best Practice Portal API',
       version: '1.0.0',

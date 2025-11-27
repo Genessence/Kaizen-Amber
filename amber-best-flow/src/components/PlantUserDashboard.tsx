@@ -1568,7 +1568,18 @@ const PlantUserDashboard = ({
               <ListSkeleton items={4} />
             ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
               <div className="space-y-4">
-                {benchmarkedPractices
+                {(() => {
+                  // Sort: Other plants' BPs first, then current user's plant BPs
+                  const currentPlantId = user?.plant_id;
+                  const sortedBPs = [...benchmarkedPractices].sort((a, b) => {
+                    const aIsCurrentPlant = a.plant_id === currentPlantId;
+                    const bIsCurrentPlant = b.plant_id === currentPlantId;
+                    if (aIsCurrentPlant && !bIsCurrentPlant) return 1;
+                    if (!aIsCurrentPlant && bIsCurrentPlant) return -1;
+                    return 0;
+                  });
+                  return sortedBPs;
+                })()
                   .slice(0, 4)
                   .map((bp: any, index: number) => (
                     <div
@@ -1651,118 +1662,6 @@ const PlantUserDashboard = ({
         </Card>
       </div>
 
-      {/* Recent Submissions */}
-      <div className="lg:col-span-3">
-        <Card className="shadow-soft hover:shadow-medium transition-smooth border border-border/50">
-          <CardHeader>
-            <CardTitle>Latest Best Practices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {unifiedLoading ? (
-              <ListSkeleton items={4} />
-            ) : unifiedError ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2 opacity-50" />
-                <p className="text-sm">Failed to load recent practices</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Please try again later
-                </p>
-              </div>
-            ) : recentPractices && recentPractices.length > 0 ? (
-              <div className="space-y-4">
-                {recentPractices
-                  .slice(0, 4)
-                  .map((practice: any, index: number) => {
-                    // Calculate time ago from submitted_date_iso (preferred) or submitted_date
-                    const submittedDate = practice.submitted_date_iso
-                      ? new Date(practice.submitted_date_iso)
-                      : practice.submitted_date
-                      ? new Date(practice.submitted_date)
-                      : null;
-
-                    const timeAgo = submittedDate
-                      ? (() => {
-                          const diffMs = Date.now() - submittedDate.getTime();
-                          const diffHours = Math.floor(
-                            diffMs / (1000 * 60 * 60)
-                          );
-                          const diffDays = Math.floor(diffHours / 24);
-                          const diffWeeks = Math.floor(diffDays / 7);
-                          const diffMonths = Math.floor(diffDays / 30);
-
-                          if (diffMonths > 0)
-                            return `${diffMonths} month${
-                              diffMonths > 1 ? "s" : ""
-                            } ago`;
-                          if (diffWeeks > 0)
-                            return `${diffWeeks} week${
-                              diffWeeks > 1 ? "s" : ""
-                            } ago`;
-                          if (diffDays > 0)
-                            return `${diffDays} day${
-                              diffDays > 1 ? "s" : ""
-                            } ago`;
-                          if (diffHours > 0)
-                            return `${diffHours} hour${
-                              diffHours > 1 ? "s" : ""
-                            } ago`;
-                          return "Just now";
-                        })()
-                      : practice.submitted_date || "Recently";
-
-                    return (
-                      <div
-                        key={practice.id || index}
-                        className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                        onClick={() => {
-                          navigate(`/practices/${practice.id}`);
-                        }}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <h4 className="font-medium truncate">{practice.title}</h4>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-md">{practice.title}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {practice.category_name || "Other"}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {practice.plant_name || "Unknown Plant"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              • {timeAgo}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {practice.question_count > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="bg-primary/10 text-primary text-xs"
-                            >
-                              {practice.question_count} Q&A
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No recent practices available</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Benchmark BP Leaderboard */}
       <div className="lg:col-span-3">

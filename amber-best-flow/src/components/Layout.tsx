@@ -29,9 +29,9 @@ const Layout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background via-accent/30 to-secondary/5">
-      {/* Header */}
-      <div className="border-b bg-card shadow-card">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background via-accent/30 to-secondary/5 flex flex-col">
+      {/* Header - Sticky */}
+      <div className="sticky top-0 z-50 border-b bg-card shadow-card backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -66,12 +66,23 @@ const Layout = () => {
       </div>
 
       {/* Main Content */}
-      <div className="min-h-[calc(100vh-5rem)]">
-        <div className="space-y-6">
+      <div className="flex-1 min-h-[calc(100vh-5rem)]">
+        <div className="container mx-auto px-4 py-6 space-y-6">
           <Navigation />
           <Outlet />
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="border-t bg-card shadow-card mt-auto">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-center">
+            <p className="text-xs text-muted-foreground text-center">
+              © 2025 Amber Enterprises India Limited. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

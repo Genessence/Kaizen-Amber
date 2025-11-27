@@ -20,9 +20,10 @@ interface BenchmarkedListProps {
   items: any[];
   onUnbenchmark: (practice: any) => void;
   onCopyAndImplement?: (bpData: any) => void;
+  currentUserPlantId?: string;
 }
 
-const BenchmarkedList = ({ items, onUnbenchmark, onCopyAndImplement }: BenchmarkedListProps) => {
+const BenchmarkedList = ({ items, onUnbenchmark, onCopyAndImplement, currentUserPlantId }: BenchmarkedListProps) => {
   const navigate = useNavigate();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedBP, setSelectedBP] = useState<any>(null);
@@ -94,17 +95,20 @@ const BenchmarkedList = ({ items, onUnbenchmark, onCopyAndImplement }: Benchmark
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/practices/${practice.id}`); }}>View</Button>
-                  <Button 
-                    size="sm" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      handleCopyImplement(practice); 
-                    }}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy & Implement
-                  </Button>
+                  {/* Only show Copy & Implement if this BP is NOT from the current user's plant */}
+                  {(!currentUserPlantId || !practice.plant_id || practice.plant_id !== currentUserPlantId) && (
+                    <Button 
+                      size="sm" 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        handleCopyImplement(practice); 
+                      }}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy & Implement
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

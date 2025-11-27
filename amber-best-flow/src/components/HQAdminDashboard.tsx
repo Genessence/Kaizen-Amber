@@ -17,11 +17,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { 
-  Building2, 
-  TrendingUp, 
-  Clock, 
-  CheckCircle, 
+import {
+  Building2,
+  TrendingUp,
+  Clock,
+  CheckCircle,
   XCircle,
   Shield,
   Zap,
@@ -38,9 +38,15 @@ import {
   Loader2,
   Calendar,
   AlertCircle,
-  Info
+  Info,
 } from "lucide-react";
-import { CardSkeleton, TableSkeleton, ListSkeleton, StatsCardSkeleton, ChartSkeleton } from "@/components/ui/skeletons";
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ListSkeleton,
+  StatsCardSkeleton,
+  ChartSkeleton,
+} from "@/components/ui/skeletons";
 import StarRatingInfo from "@/components/StarRatingInfo";
 import {
   ChartContainer,
@@ -49,36 +55,76 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LabelList,
+} from "recharts";
 // Most analytics data now comes from useUnifiedDashboard hook
 // Only usePlantMonthlyTrend is kept for lazy loading when plant is selected
 import { usePlantMonthlyTrend } from "@/hooks/useAnalytics";
 import { usePlants } from "@/hooks/usePlants";
 import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface HQAdminDashboardProps {
   thisMonthTotal?: number;
   ytdTotal?: number;
-  copySpread?: { bp: string; origin: string; copies: { plant: string; date: string }[] }[];
-  leaderboard?: { plant: string; totalPoints: number; breakdown: { type: "Origin" | "Copier"; points: number; date: string; bpTitle: string }[] }[];
+  copySpread?: {
+    bp: string;
+    origin: string;
+    copies: { plant: string; date: string }[];
+  }[];
+  leaderboard?: {
+    plant: string;
+    totalPoints: number;
+    breakdown: {
+      type: "Origin" | "Copier";
+      points: number;
+      date: string;
+      bpTitle: string;
+    }[];
+  }[];
 }
 
-const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }: HQAdminDashboardProps) => {
+const HQAdminDashboard = ({
+  thisMonthTotal,
+  ytdTotal,
+  copySpread,
+  leaderboard,
+}: HQAdminDashboardProps) => {
   const navigate = useNavigate();
-  
+
   // State declarations (must be before hooks that use them)
-  const [starRatingsFormat, setStarRatingsFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [starRatingsFormat, setStarRatingsFormat] = useState<
+    "lakhs" | "crores"
+  >("lakhs");
   const [showDivisionSelector, setShowDivisionSelector] = useState(false);
   const [division, setDivision] = useState<"all" | "component">("all");
-  const [plantPerformanceView, setPlantPerformanceView] = useState<"yearly" | "currentMonth">("yearly");
-  const [leaderboardFormat, setLeaderboardFormat] = useState<'lakhs' | 'crores'>('lakhs');
+  const [plantPerformanceView, setPlantPerformanceView] = useState<
+    "yearly" | "currentMonth"
+  >("yearly");
+  const [leaderboardFormat, setLeaderboardFormat] = useState<
+    "lakhs" | "crores"
+  >("lakhs");
   const [activePlantsDialogOpen, setActivePlantsDialogOpen] = useState(false);
   const [lbDrillOpen, setLbDrillOpen] = useState(false);
-  
+
   // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
-  const { data: unifiedData, isLoading: unifiedLoading, error: unifiedError } = useUnifiedDashboard(starRatingsFormat);
-  
+  const {
+    data: unifiedData,
+    isLoading: unifiedLoading,
+    error: unifiedError,
+  } = useUnifiedDashboard(starRatingsFormat);
+
   // Extract data from unified response
   const overview = unifiedData?.data?.overview;
   const leaderboardData = unifiedData?.data?.leaderboard;
@@ -89,10 +135,10 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   const benchmarkStatsData = unifiedData?.data?.benchmark_stats;
   const starRatingsData = unifiedData?.data?.star_ratings;
   const recentPractices = unifiedData?.data?.recent_practices;
-  
+
   // Still fetch plants separately as it's used in many places (minimal data)
   const { data: plantsData } = usePlants(true);
-  
+
   // Use unified loading state for all data
   const overviewLoading = unifiedLoading;
   const leaderboardLoading = unifiedLoading;
@@ -120,26 +166,31 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
   } | null>(null);
   const [bpSpreadOpen, setBpSpreadOpen] = useState(false);
   const [bpSpreadBP, setBpSpreadBP] = useState<string | null>(null);
-  const [bpSpreadRows, setBpSpreadRows] = useState<{ plant: string; date: string }[]>([]);
+  const [bpSpreadRows, setBpSpreadRows] = useState<
+    { plant: string; date: string }[]
+  >([]);
   const [benchmarkedOpen, setBenchmarkedOpen] = useState(false);
   // star drilldown
   const [starDrillOpen, setStarDrillOpen] = useState(false);
   const [starDrillPlant, setStarDrillPlant] = useState<string | null>(null);
   const [starDrillPlantId, setStarDrillPlantId] = useState<string | null>(null);
-  const [starDrillData, setStarDrillData] = useState<{ month: string; savings: number; stars: number }[]>([]);
+  const [starDrillData, setStarDrillData] = useState<
+    { month: string; savings: number; stars: number }[]
+  >([]);
   // star rating info dialog
   const [starRatingInfoOpen, setStarRatingInfoOpen] = useState(false);
-  
+
   // Use API data with fallback to props
   const actualThisMonthTotal = overview?.monthly_count ?? thisMonthTotal ?? 187;
   const actualYtdTotal = overview?.ytd_count ?? ytdTotal ?? 295;
-  
+
   // Fetch monthly trend for selected plant (lazy loading - only when plant selected)
-  const { data: monthlyTrendData, isLoading: monthlyTrendLoading } = usePlantMonthlyTrend(
-    starDrillPlantId || undefined,
-    undefined,
-    starRatingsFormat
-  );
+  const { data: monthlyTrendData, isLoading: monthlyTrendLoading } =
+    usePlantMonthlyTrend(
+      starDrillPlantId || undefined,
+      undefined,
+      starRatingsFormat
+    );
 
   const mergedLeaderboard = useMemo(() => {
     if (leaderboardData && leaderboardData.length > 0) {
@@ -244,42 +295,61 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
 
   // Submission-derived active plants (YTD)
   // Use plantData length as it now includes all plants merged from plantsData
-  const totalPlantCount = plantData.length > 0 ? plantData.length : (plantsData?.length || 0);
-  const activeBySubmission = useMemo(() => plantData.filter((p) => p.submitted > 0), [plantData]);
+  const totalPlantCount =
+    plantData.length > 0 ? plantData.length : plantsData?.length || 0;
+  const activeBySubmission = useMemo(
+    () => plantData.filter((p) => p.submitted > 0),
+    [plantData]
+  );
   const activeBySubmissionCount = activeBySubmission.length;
-  const ytdSubmissions = useMemo(() => plantData.reduce((sum, p) => sum + (p.submitted || 0), 0), [plantData]);
+  const ytdSubmissions = useMemo(
+    () => plantData.reduce((sum, p) => sum + (p.submitted || 0), 0),
+    [plantData]
+  );
 
   // Derive component plants from API data
   const componentPlants = useMemo(() => {
     if (!plantsData || plantsData.length === 0) return [];
     return plantsData.map((plant: any) => ({
       name: plant.name || plant.plant_name,
-      active: activeBySubmission.some((p) => p.name === (plant.name || plant.plant_name))
+      active: activeBySubmission.some(
+        (p) => p.name === (plant.name || plant.plant_name)
+      ),
     }));
   }, [plantsData, activeBySubmission]);
 
   const plantShortLabel: Record<string, string> = {
     "Greater Noida (Ecotech 1)": "Greater Noida",
-    "Kanchipuram": "Kanchipuram",
-    "Rajpura": "Rajpura",
-    "Shahjahanpur": "Shahjahanpur",
-    "Supa": "Supa",
-    "Ranjangaon": "Ranjangaon",
-    "Ponneri": "Ponneri",
+    Kanchipuram: "Kanchipuram",
+    Rajpura: "Rajpura",
+    Shahjahanpur: "Shahjahanpur",
+    Supa: "Supa",
+    Ranjangaon: "Ranjangaon",
+    Ponneri: "Ponneri",
   };
 
   const { activeCount, inactiveCount } = useMemo(() => {
     const activeCount = activeBySubmissionCount;
-    const inactiveCount = Math.max(totalPlantCount - activeBySubmissionCount, 0);
+    const inactiveCount = Math.max(
+      totalPlantCount - activeBySubmissionCount,
+      0
+    );
     return { activeCount, inactiveCount };
   }, [activeBySubmissionCount, totalPlantCount]);
 
   // Division-wise derivation based on submissions
-  const componentNames = useMemo(() => plantData.map((p) => p.name), [plantData]);
-  const activeNameSet = useMemo(() => new Set(activeBySubmission.map((p) => p.name)), [activeBySubmission]);
+  const componentNames = useMemo(
+    () => plantData.map((p) => p.name),
+    [plantData]
+  );
+  const activeNameSet = useMemo(
+    () => new Set(activeBySubmission.map((p) => p.name)),
+    [activeBySubmission]
+  );
 
   const divisionActiveNames = useMemo(() => {
-    if (division === "component") return componentNames.filter((n) => activeNameSet.has(n));
+    if (division === "component")
+      return componentNames.filter((n) => activeNameSet.has(n));
     return componentNames.filter((n) => activeNameSet.has(n));
   }, [division, componentNames, activeNameSet]);
 
@@ -296,12 +366,16 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">Component Division Overview</h2>
-                <p className="text-primary-foreground/80">Amber Best Practice & Benchmarking Portal</p>
+                <h2 className="text-2xl font-bold">
+                  Component Division Overview
+                </h2>
+                <p className="text-primary-foreground/80">
+                  Amber Best Practice & Benchmarking Portal
+                </p>
               </div>
               <div className="flex items-center space-x-3">
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   variant="outline"
                   className="bg-white/10 hover:bg-white/20 text-white border-white/30"
                   onClick={() => setShowDivisionSelector((v) => !v)}
@@ -337,8 +411,18 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-success/10 text-success">Active: {divisionActiveNames.length}</Badge>
-                  <Badge variant="outline" className="bg-muted/50 text-muted-foreground">Inactive: {divisionInactiveNames.length}</Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-success/10 text-success"
+                  >
+                    Active: {divisionActiveNames.length}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-muted/50 text-muted-foreground"
+                  >
+                    Inactive: {divisionInactiveNames.length}
+                  </Badge>
                 </div>
               </div>
 
@@ -348,10 +432,18 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   <p className="font-medium mb-2">Active Plants</p>
                   <div className="space-y-2">
                     {divisionActiveNames.map((name) => (
-                      <div key={name} className="flex items-center justify-between">
+                      <div
+                        key={name}
+                        className="flex items-center justify-between"
+                      >
                         <span>{name}</span>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-success/10 text-success">Active</Badge>
+                          <Badge
+                            variant="outline"
+                            className="bg-success/10 text-success"
+                          >
+                            Active
+                          </Badge>
                         </div>
                       </div>
                     ))}
@@ -361,13 +453,23 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   <p className="font-medium mb-2">Inactive Plants</p>
                   <div className="space-y-2">
                     {divisionInactiveNames.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No inactive plants</div>
+                      <div className="text-sm text-muted-foreground">
+                        No inactive plants
+                      </div>
                     ) : (
                       divisionInactiveNames.map((name) => (
-                        <div key={name} className="flex items-center justify-between">
+                        <div
+                          key={name}
+                          className="flex items-center justify-between"
+                        >
                           <span>{name}</span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-muted/50 text-muted-foreground">Inactive</Badge>
+                            <Badge
+                              variant="outline"
+                              className="bg-muted/50 text-muted-foreground"
+                            >
+                              Inactive
+                            </Badge>
                           </div>
                         </div>
                       ))
@@ -403,25 +505,41 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   </div>
                 </div>
               ) : (
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div>
-                  <div className="text-3xl font-bold text-primary">{actualThisMonthTotal}</div>
-                  <p className="text-sm text-muted-foreground">in {new Date().toLocaleString('default', { month: 'long' })}</p>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <div className="text-3xl font-bold text-primary">
+                      {actualThisMonthTotal}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      in{" "}
+                      {new Date().toLocaleString("default", { month: "long" })}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold text-primary">
+                      {actualYtdTotal}
+                    </div>
+                    <p className="text-sm text-muted-foreground">This Year</p>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-3xl font-bold text-primary">{actualYtdTotal}</div>
-                  <p className="text-sm text-muted-foreground">This Year</p>
-                </div>
-              </div>
               )}
-              {overview?.percent_change !== undefined && overview.percent_change !== null && (
-                <div className="mt-2 text-center">
-                  <Badge variant="outline" className={overview.percent_change >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}>
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    {overview.percent_change >= 0 ? '+' : ''}{overview.percent_change.toFixed(1)}% vs last month
-                  </Badge>
-                </div>
-              )}
+              {overview?.percent_change !== undefined &&
+                overview.percent_change !== null && (
+                  <div className="mt-2 text-center">
+                    <Badge
+                      variant="outline"
+                      className={
+                        overview.percent_change >= 0
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive"
+                      }
+                    >
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      {overview.percent_change >= 0 ? "+" : ""}
+                      {overview.percent_change.toFixed(1)}% vs last month
+                    </Badge>
+                  </div>
+                )}
             </CardContent>
           </Card>
 
@@ -441,16 +559,21 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 </div>
               ) : (
                 <>
-                  <div className="text-3xl font-bold text-primary cursor-pointer" onClick={() => setBenchmarkedOpen(true)}>
+                  <div
+                    className="text-3xl font-bold text-primary cursor-pointer"
+                    onClick={() => setBenchmarkedOpen(true)}
+                  >
                     {overview?.benchmarked_count ?? 150}
                   </div>
-                  <p className="text-sm text-muted-foreground">Tap to view details</p>
+                  <p className="text-sm text-muted-foreground">
+                    Tap to view details
+                  </p>
                 </>
               )}
             </CardContent>
           </Card>
 
-          <Card 
+          <Card
             className="shadow-card cursor-pointer hover:shadow-medium transition-smooth"
             onClick={() => setActivePlantsDialogOpen(true)}
           >
@@ -461,14 +584,25 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
-              <div className="text-3xl font-bold text-primary">{activeBySubmissionCount}/{totalPlantCount} plants</div>
-              <p className="text-sm text-muted-foreground">With submitted practices (YTD)</p>
+              <div className="text-3xl font-bold text-primary">
+                {activeBySubmissionCount}/{totalPlantCount} plants
+              </div>
+              <p className="text-sm text-muted-foreground">
+                With submitted practices (YTD)
+              </p>
               <div className="mt-2">
                 <Badge variant="outline" className="bg-primary/10 text-primary">
-                  {totalPlantCount > 0 ? Math.round((activeBySubmissionCount / totalPlantCount) * 100) : 0}% Participation
+                  {totalPlantCount > 0
+                    ? Math.round(
+                        (activeBySubmissionCount / totalPlantCount) * 100
+                      )
+                    : 0}
+                  % Participation
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Click to view details</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Click to view details
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -483,7 +617,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               Benchmarked BPs - Copy Spread
             </AlertDialogTitle>
             <AlertDialogDescription className="text-xs mt-2">
-              Shows origin plant, which plants copied each BP, and dates. If none copied, you'll see a notice.
+              Shows origin plant, which plants copied each BP, and dates. If
+              none copied, you'll see a notice.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="overflow-y-auto flex-1 min-h-0 -mx-2 px-2 space-y-4 py-4">
@@ -491,14 +626,14 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               benchmarkedBPs.map((row, index) => {
                 // Format date helper
                 const formatDate = (dateString: string) => {
-                  if (!dateString) return 'N/A';
+                  if (!dateString) return "N/A";
                   try {
                     const date = new Date(dateString);
                     if (isNaN(date.getTime())) return dateString;
-                    return date.toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
+                    return date.toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
                     });
                   } catch {
                     return dateString;
@@ -506,19 +641,26 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 };
 
                 return (
-                  <div 
-                    key={row.bp} 
+                  <div
+                    key={row.bp}
                     className="p-4 border-2 rounded-xl bg-gradient-to-br from-primary/5 via-background to-primary/5 hover:shadow-lg transition-all duration-200"
                     style={{
-                      borderColor: `hsl(var(--primary) / ${0.2 + (index % 3) * 0.1})`,
+                      borderColor: `hsl(var(--primary) / ${
+                        0.2 + (index % 3) * 0.1
+                      })`,
                     }}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                        <div className="font-semibold text-base text-foreground">{row.bp}</div>
+                        <div className="font-semibold text-base text-foreground">
+                          {row.bp}
+                        </div>
                       </div>
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-xs px-3 py-1">
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary border-primary/30 text-xs px-3 py-1"
+                      >
                         <Building2 className="h-3 w-3 mr-1" />
                         Origin: {row.origin}
                       </Badge>
@@ -536,13 +678,20 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                                   <Building2 className="h-4 w-4 text-primary" />
                                 </div>
                                 <div>
-                                  <div className="font-medium text-sm">{c.plant}</div>
-                                  <div className="text-xs text-muted-foreground">Copied</div>
+                                  <div className="font-medium text-sm">
+                                    {c.plant}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Copied
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <Badge variant="secondary" className="text-xs font-medium">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs font-medium"
+                                >
                                   {formatDate(c.date)}
                                 </Badge>
                               </div>
@@ -553,7 +702,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         <div className="p-6 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30 text-center">
                           <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
                           <p className="text-sm text-muted-foreground font-medium">
-                            This benchmarked BP has not been copied to any plant yet
+                            This benchmarked BP has not been copied to any plant
+                            yet
                           </p>
                         </div>
                       )}
@@ -564,7 +714,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <Star className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm font-medium">No benchmarked BPs available</p>
+                <p className="text-sm font-medium">
+                  No benchmarked BPs available
+                </p>
               </div>
             )}
           </div>
@@ -584,7 +736,10 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             {categoryLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="bg-gradient-to-br p-4 rounded-lg border">
+                  <div
+                    key={i}
+                    className="bg-gradient-to-br p-4 rounded-lg border"
+                  >
                     <div className="flex items-center space-x-3">
                       <div className="h-8 w-8 bg-muted animate-pulse rounded" />
                       <div className="flex-1 space-y-2">
@@ -596,59 +751,78 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 ))}
               </div>
             ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              {categoryBreakdown?.map((cat) => {
-                const getIcon = (name: string | undefined) => {
-                  if (!name) return <Settings className="h-8 w-8 text-purple-600" />;
-                  switch (name.toLowerCase()) {
-                    case 'safety': return <Shield className="h-8 w-8 text-red-600" />;
-                    case 'quality': return <Target className="h-8 w-8 text-green-600" />;
-                    case 'productivity': return <Zap className="h-8 w-8 text-blue-600" />;
-                    case 'cost': return <IndianRupee className="h-8 w-8 text-yellow-600" />;
-                    case 'digitalisation': return <Cpu className="h-8 w-8 text-purple-600" />;
-                    case 'esg': return <LineChart className="h-8 w-8 text-green-600" />;
-                    case 'automation': return <Bot className="h-8 w-8 text-orange-600" />;
-                    default: return <Settings className="h-8 w-8 text-purple-600" />;
-                  }
-                };
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {categoryBreakdown?.map((cat) => {
+                  const getIcon = (name: string | undefined) => {
+                    if (!name)
+                      return <Settings className="h-8 w-8 text-purple-600" />;
+                    switch (name.toLowerCase()) {
+                      case "safety":
+                        return <Shield className="h-8 w-8 text-red-600" />;
+                      case "quality":
+                        return <Target className="h-8 w-8 text-green-600" />;
+                      case "productivity":
+                        return <Zap className="h-8 w-8 text-blue-600" />;
+                      case "cost":
+                        return (
+                          <IndianRupee className="h-8 w-8 text-yellow-600" />
+                        );
+                      case "digitalisation":
+                        return <Cpu className="h-8 w-8 text-purple-600" />;
+                      case "esg":
+                        return <LineChart className="h-8 w-8 text-green-600" />;
+                      case "automation":
+                        return <Bot className="h-8 w-8 text-orange-600" />;
+                      default:
+                        return <Settings className="h-8 w-8 text-purple-600" />;
+                    }
+                  };
 
-                const getCategoryColor = (name: string | undefined) => {
-                  if (!name) return "from-purple-50 to-purple-100 border-purple-200";
-                  switch (name.toLowerCase()) {
-                    case "safety":
-                      return "from-pink-50 to-pink-100 border-pink-200";
-                    case "quality":
-                      return "from-green-50 to-green-100 border-green-200";
-                    case "productivity":
-                      return "from-blue-50 to-blue-100 border-blue-200";
-                    case "cost":
-                      return "from-yellow-50 to-yellow-100 border-yellow-200";
-                    case "digitalisation":
+                  const getCategoryColor = (name: string | undefined) => {
+                    if (!name)
                       return "from-purple-50 to-purple-100 border-purple-200";
-                    case "esg":
-                      return "from-green-50 to-green-100 border-green-200";
-                    case "automation":
-                      return "from-orange-50 to-orange-100 border-orange-200";
-                    default:
-                      return "from-purple-50 to-purple-100 border-purple-200";
-                  }
-                };
-                
-                if (!cat.category_name) return null;
+                    switch (name.toLowerCase()) {
+                      case "safety":
+                        return "from-pink-50 to-pink-100 border-pink-200";
+                      case "quality":
+                        return "from-green-50 to-green-100 border-green-200";
+                      case "productivity":
+                        return "from-blue-50 to-blue-100 border-blue-200";
+                      case "cost":
+                        return "from-yellow-50 to-yellow-100 border-yellow-200";
+                      case "digitalisation":
+                        return "from-purple-50 to-purple-100 border-purple-200";
+                      case "esg":
+                        return "from-green-50 to-green-100 border-green-200";
+                      case "automation":
+                        return "from-orange-50 to-orange-100 border-orange-200";
+                      default:
+                        return "from-purple-50 to-purple-100 border-purple-200";
+                    }
+                  };
 
-                return (
-                  <div key={cat.category_id || cat.category_name} className={`bg-gradient-to-br p-4 rounded-lg border ${getCategoryColor(cat.category_name)}`}>
-                    <div className="flex items-center space-x-3">
-                      {getIcon(cat.category_name)}
-                      <div>
-                        <p className="font-semibold">{cat.category_name}</p>
-                        <p className="text-2xl font-bold">{cat.practice_count}</p>
+                  if (!cat.category_name) return null;
+
+                  return (
+                    <div
+                      key={cat.category_id || cat.category_name}
+                      className={`bg-gradient-to-br p-4 rounded-lg border ${getCategoryColor(
+                        cat.category_name
+                      )}`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        {getIcon(cat.category_name)}
+                        <div>
+                          <p className="font-semibold">{cat.category_name}</p>
+                          <p className="text-2xl font-bold">
+                            {cat.practice_count}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -673,10 +847,18 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 }}
                 className="border rounded-md"
               >
-                <ToggleGroupItem value="yearly" aria-label="Yearly performance" className="px-4 text-sm">
+                <ToggleGroupItem
+                  value="yearly"
+                  aria-label="Yearly performance"
+                  className="px-4 text-sm"
+                >
                   Yearly
                 </ToggleGroupItem>
-                <ToggleGroupItem value="currentMonth" aria-label="Current month performance" className="px-4 text-sm">
+                <ToggleGroupItem
+                  value="currentMonth"
+                  aria-label="Current month performance"
+                  className="px-4 text-sm"
+                >
                   Current Month
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -686,73 +868,100 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
             {performanceLoading ? (
               <ChartSkeleton />
             ) : (
-            <ChartContainer
-              config={{
-                submitted: { label: "Uploaded", color: "hsl(var(--success))" },
-              }}
-              className="h-[400px] w-full"
-            >
-              <BarChart
-                data={(plantPerformanceData || []).map((p) => ({
-                  plant: p.short_name,
-                  fullName: p.plant_name,
-                  submitted: p.submitted,
-                }))}
-                margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
+              <ChartContainer
+                config={{
+                  submitted: {
+                    label: "Uploaded",
+                    color: "hsl(var(--success))",
+                  },
+                }}
+                className="h-[400px] w-full"
               >
-                <defs>
-                  <linearGradient id="gradientSubmitted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--success))" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="hsl(var(--success))" stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="plant" />
-                <YAxis domain={[0, 'dataMax + 1']} allowDecimals={false} />
-                <ChartTooltip 
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="rounded-lg border bg-background p-2 shadow-md">
-                          <div className="grid gap-2">
-                            <div className="flex flex-col">
-                              <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                {data.fullName || label}
-                              </span>
-                              <span className="font-bold text-muted-foreground">
-                                {label}
-                              </span>
-                            </div>
-                            {payload.map((entry, index) => (
-                              <div key={index} className="flex items-center gap-2">
-                                <div 
-                                  className="h-2 w-2 rounded-full" 
-                                  style={{ backgroundColor: entry.color }}
-                                />
-                                <span className="text-[0.70rem] text-muted-foreground">
-                                  {entry.dataKey}: {entry.value}
+                <BarChart
+                  data={(plantPerformanceData || []).map((p) => ({
+                    plant: p.short_name,
+                    fullName: p.plant_name,
+                    submitted: p.submitted,
+                  }))}
+                  margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="gradientSubmitted"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="hsl(var(--success))"
+                        stopOpacity={0.9}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="hsl(var(--success))"
+                        stopOpacity={0.4}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="plant" />
+                  <YAxis domain={[0, "dataMax + 1"]} allowDecimals={false} />
+                  <ChartTooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border bg-background p-2 shadow-md">
+                            <div className="grid gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                  {data.fullName || label}
+                                </span>
+                                <span className="font-bold text-muted-foreground">
+                                  {label}
                                 </span>
                               </div>
-                            ))}
+                              {payload.map((entry, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center gap-2"
+                                >
+                                  <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span className="text-[0.70rem] text-muted-foreground">
+                                    {entry.dataKey}: {entry.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <ChartLegend content={<ChartLegendContent />} />
-                <Bar dataKey="submitted" fill="url(#gradientSubmitted)" radius={[8, 8, 0, 0]}>
-                  <LabelList dataKey="submitted" position="top" className="text-xs fill-current" />
-                </Bar>
-              </BarChart>
-            </ChartContainer>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar
+                    dataKey="submitted"
+                    fill="url(#gradientSubmitted)"
+                    radius={[8, 8, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="submitted"
+                      position="top"
+                      className="text-xs fill-current"
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>
       </div>
-
 
       {/* Benchmark BPs - This Month */}
       <div className="lg:col-span-4">
@@ -760,161 +969,133 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <BarChart3 className="h-5 w-5 text-primary" />
-              <span>Benchmark BPs - {new Date().toLocaleString('default', { month: 'long' })}</span>
+              <span>
+                Benchmark BPs -{" "}
+                {new Date().toLocaleString("default", { month: "long" })}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {benchmarkStatsLoading ? (
               <ChartSkeleton />
-            ) : (() => {
-              const benchmarkBPs = benchmarkStatsData || [];
-              const totalThisMonth = benchmarkBPs.reduce((sum, p) => sum + p.benchmarked_count, 0);
-              return (
-            <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      Number of benchmarked BPs per plant this month
+            ) : (
+              (() => {
+                const benchmarkBPs = benchmarkStatsData || [];
+                const totalThisMonth = benchmarkBPs.reduce(
+                  (sum, p) => sum + p.benchmarked_count,
+                  0
+                );
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Number of benchmarked BPs per plant this month
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary"
+                      >
+                        Total: {totalThisMonth}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="bg-primary/10 text-primary">
-                      Total: {totalThisMonth}
-                    </Badge>
-                  </div>
-                  <ChartContainer
-                    config={{
-                      benchmarkedBPs: { label: "Benchmarked BPs", color: "hsl(var(--primary))" },
-                    }}
-                    className="h-[300px] w-full"
-                  >
-                    <BarChart data={benchmarkBPs.map(p => ({ 
-                      plant: p.plant_name.split('(')[0].trim(),
-                      fullName: p.plant_name,
-                      benchmarkedBPs: p.benchmarked_count 
-                    }))} margin={{ top: 24, right: 16, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="gradientBenchmarkedBPs" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="plant" />
-                      <YAxis domain={[0, 'dataMax + 1']} allowDecimals={false} />
-                      <ChartTooltip 
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload;
-                            return (
-                              <div className="rounded-lg border bg-background p-2 shadow-md">
-                                <div className="grid gap-2">
-                                  <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                      {data.fullName || label}
-                                    </span>
-                                    <span className="font-bold text-muted-foreground">
-                                      {label}
-                                    </span>
-                                  </div>
-                                  {payload.map((entry, index) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                      <div 
-                                        className="h-2 w-2 rounded-full" 
-                                        style={{ backgroundColor: entry.color }}
-                                      />
-                                      <span className="text-[0.70rem] text-muted-foreground">
-                                        {entry.dataKey}: {entry.value}
+                    <ChartContainer
+                      config={{
+                        benchmarkedBPs: {
+                          label: "Benchmarked BPs",
+                          color: "hsl(var(--primary))",
+                        },
+                      }}
+                      className="h-[300px] w-full"
+                    >
+                      <BarChart
+                        data={benchmarkBPs.map((p) => ({
+                          plant: p.plant_name.split("(")[0].trim(),
+                          fullName: p.plant_name,
+                          benchmarkedBPs: p.benchmarked_count,
+                        }))}
+                        margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient
+                            id="gradientBenchmarkedBPs"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="hsl(var(--primary))"
+                              stopOpacity={0.9}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="hsl(var(--primary))"
+                              stopOpacity={0.4}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="plant" />
+                        <YAxis
+                          domain={[0, "dataMax + 1"]}
+                          allowDecimals={false}
+                        />
+                        <ChartTooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="rounded-lg border bg-background p-2 shadow-md">
+                                  <div className="grid gap-2">
+                                    <div className="flex flex-col">
+                                      <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                        {data.fullName || label}
+                                      </span>
+                                      <span className="font-bold text-muted-foreground">
+                                        {label}
                                       </span>
                                     </div>
-                                  ))}
+                                    {payload.map((entry, index) => (
+                                      <div
+                                        key={index}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <div
+                                          className="h-2 w-2 rounded-full"
+                                          style={{
+                                            backgroundColor: entry.color,
+                                          }}
+                                        />
+                                        <span className="text-[0.70rem] text-muted-foreground">
+                                          {entry.dataKey}: {entry.value}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                    </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <ChartLegend content={<ChartLegendContent />} />
-                    <Bar dataKey="benchmarkedBPs" fill="url(#gradientBenchmarkedBPs)" radius={[8, 8, 0, 0]}>
-                      <LabelList dataKey="benchmarkedBPs" position="top" className="text-xs fill-current" />
-                    </Bar>
-                    </BarChart>
-                  </ChartContainer>
-                    </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-                    </div>
-
-      {/* Recent Benchmark BPs */}
-      <div className="lg:col-span-4">
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Star className="h-5 w-5 text-primary" />
-              <span>Latest Benchmark BPs</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {benchmarkedPracticesLoading ? (
-              <ListSkeleton items={4} />
-            ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
-              <div className="space-y-4">
-                {benchmarkedPractices.slice(0, 4).map((bp: any) => {
-                  // Format benchmarked date
-                  const benchmarkedDate = bp.benchmarked_date 
-                    ? new Date(bp.benchmarked_date)
-                    : null;
-                  const timeAgo = benchmarkedDate
-                    ? (() => {
-                        const diffMs = Date.now() - benchmarkedDate.getTime();
-                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                        const diffDays = Math.floor(diffHours / 24);
-                        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-                        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-                        return 'Just now';
-                      })()
-                    : 'Recently';
-                  
-                  return (
-                    <div 
-                      key={bp.practice_id || bp.id} 
-                      className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                      onClick={() => {
-                        navigate(`/practices/${bp.practice_id || bp.id}`);
-                      }}
-                    >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{bp.practice_title || bp.title}</h4>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {bp.practice_category || bp.category_name || bp.category || "Other"}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {bp.plant_name || bp.plant || "Unknown Plant"}
-                          </span>
-                          <span className="text-xs text-muted-foreground">• {timeAgo}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/practices/${bp.practice_id || bp.id}`);
+                              );
+                            }
+                            return null;
                           }}
+                        />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar
+                          dataKey="benchmarkedBPs"
+                          fill="url(#gradientBenchmarkedBPs)"
+                          radius={[8, 8, 0, 0]}
                         >
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No benchmarked practices yet</p>
-              </div>
+                          <LabelList
+                            dataKey="benchmarkedBPs"
+                            position="top"
+                            className="text-xs fill-current"
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
+                );
+              })()
             )}
           </CardContent>
         </Card>
@@ -944,16 +1125,24 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 type="single"
                 value={starRatingsFormat}
                 onValueChange={(value) => {
-                  if (value === 'lakhs' || value === 'crores') {
+                  if (value === "lakhs" || value === "crores") {
                     setStarRatingsFormat(value);
                   }
                 }}
                 className="border rounded-md"
               >
-                <ToggleGroupItem value="lakhs" className="px-3 text-xs" aria-label="Lakhs">
+                <ToggleGroupItem
+                  value="lakhs"
+                  className="px-3 text-xs"
+                  aria-label="Lakhs"
+                >
                   L
                 </ToggleGroupItem>
-                <ToggleGroupItem value="crores" className="px-3 text-xs" aria-label="Crores">
+                <ToggleGroupItem
+                  value="crores"
+                  className="px-3 text-xs"
+                  aria-label="Crores"
+                >
                   Cr
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -962,80 +1151,113 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
           <CardContent>
             {starRatingsLoading ? (
               <TableSkeleton rows={5} />
-            ) : starRatingsData && starRatingsData.length > 0 ? (() => {
-              // Parse savings strings (e.g., "14.2L" or "196.5L") to numbers
-              const parseSavings = (savingsStr: string): number => {
-                if (!savingsStr) return 0;
-                const isCrores = savingsStr.includes("Cr");
-                const isLakhs = savingsStr.includes("L");
-                const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
-                const value = parseFloat(numStr) || 0;
-                // Convert crores to lakhs for consistent comparison
-                return isCrores ? value * 100 : value;
-              };
+            ) : starRatingsData && starRatingsData.length > 0 ? (
+              (() => {
+                // Parse savings strings (e.g., "14.2L" or "196.5L") to numbers
+                // Always normalize to lakhs for consistent internal storage
+                // The backend should return values in lakhs format, but we handle both cases
+                const parseSavings = (savingsStr: string | number): number => {
+                  if (!savingsStr && savingsStr !== 0) return 0;
 
-              // Transform API data to match component structure
-              const ratings = starRatingsData.map((rating) => {
-                const monthly = parseSavings(rating.monthly_savings);
-                const ytd = parseSavings(rating.ytd_savings);
-                return {
-                  plant_id: rating.plant_id,
-                  name: rating.plant_name,
-                  monthly,
-                  ytd,
-                  monthStars: rating.stars,
+                  // Handle numeric values - assume they're already in lakhs
+                  if (typeof savingsStr === "number") {
+                    return savingsStr;
+                  }
+
+                  // Handle string values
+                  const str = String(savingsStr);
+                  const isCrores = str.includes("Cr") || str.includes("cr");
+                  const isLakhs = str.includes("L") || str.includes("l");
+                  const numStr = str.replace(/[CrL₹crl,]/g, "").trim();
+                  const value = parseFloat(numStr) || 0;
+
+                  // Always convert to lakhs for consistent internal storage
+                  // If backend returns in crores, multiply by 100 to get lakhs
+                  // If backend returns in lakhs, use as-is
+                  // If no suffix, assume lakhs (backend should always provide suffix)
+                  return isCrores ? value * 100 : value;
                 };
-              });
 
-              return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="py-2">Plant</th>
-                        <th className="py-2">Monthly Savings</th>
-                        <th className="py-2">YTD Savings</th>
-                        <th className="py-2">Stars (Month)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {ratings.map((r) => (
-                        <tr
-                          key={r.plant_id || r.name}
-                          className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
-                          onClick={() => {
-                            setStarDrillPlant(r.name);
-                            setStarDrillPlantId(r.plant_id);
-                            setStarDrillOpen(true);
-                          }}
-                        >
-                          <td className="py-2 font-medium">{r.name}</td>
-                          <td className="py-2">{formatCurrency(r.monthly, 1, starRatingsFormat)}</td>
-                          <td className="py-2">{formatCurrency(r.ytd, 1, starRatingsFormat)}</td>
-                          <td className="py-2">
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`h-4 w-4 ${
-                                    i < r.monthStars
-                                      ? 'fill-yellow-400 text-yellow-400'
-                                      : 'text-muted-foreground'
-                                  }`}
-                                />
-                              ))}
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                ({r.monthStars})
-                              </span>
-                            </div>
-                          </td>
+                // Transform API data to match component structure
+                // IMPORTANT: Always normalize to lakhs internally, regardless of backend format
+                const ratings = starRatingsData.map((rating) => {
+                  const monthly = parseSavings(rating.monthly_savings);
+                  const ytd = parseSavings(rating.ytd_savings);
+
+                  // Debug: Log if values seem incorrect (optional, can remove later)
+                  // if (monthly > 1000000 || ytd > 1000000) {
+                  //   console.warn('Large value detected:', {
+                  //     plant: rating.plant_name,
+                  //     monthly,
+                  //     ytd,
+                  //     rawMonthly: rating.monthly_savings,
+                  //     rawYtd: rating.ytd_savings
+                  //   });
+                  // }
+
+                  return {
+                    plant_id: rating.plant_id,
+                    name: rating.plant_name,
+                    monthly, // Value in lakhs
+                    ytd, // Value in lakhs
+                    monthStars: rating.stars,
+                  };
+                });
+
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-muted-foreground">
+                          <th className="py-2">Plant</th>
+                          <th className="py-2">Monthly Savings</th>
+                          <th className="py-2">YTD Savings</th>
+                          <th className="py-2">Stars (Month)</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })() : (
+                      </thead>
+                      <tbody className="divide-y">
+                        {ratings.map((r) => (
+                          <tr
+                            key={r.plant_id || r.name}
+                            className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
+                            onClick={() => {
+                              setStarDrillPlant(r.name);
+                              setStarDrillPlantId(r.plant_id);
+                              setStarDrillOpen(true);
+                            }}
+                          >
+                            <td className="py-2 font-medium">{r.name}</td>
+                            <td className="py-2">
+                              {formatCurrency(r.monthly, 1, starRatingsFormat)}
+                            </td>
+                            <td className="py-2">
+                              {formatCurrency(r.ytd, 1, starRatingsFormat)}
+                            </td>
+                            <td className="py-2">
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-4 w-4 ${
+                                      i < r.monthStars
+                                        ? "fill-yellow-400 text-yellow-400"
+                                        : "text-muted-foreground"
+                                    }`}
+                                  />
+                                ))}
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({r.monthStars})
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()
+            ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <p className="text-sm">No star ratings data available</p>
               </div>
@@ -1046,15 +1268,20 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               <AlertDialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-6">
                 <AlertDialogHeader className="pb-3">
                   <AlertDialogTitle>
-                    {starDrillPlant ? `${starDrillPlant} - Monthly Savings & Stars` : "Monthly Savings & Stars"}
+                    {starDrillPlant
+                      ? `${starDrillPlant} - Monthly Savings & Stars`
+                      : "Monthly Savings & Stars"}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Savings are in ₹ {starRatingsFormat === 'crores' ? 'crores' : 'lakhs'}. Stars are calculated based on BOTH monthly and YTD thresholds:
-                    <br />• 5⭐: YTD &gt; 200L and Monthly &gt; 16L
-                    <br />• 4⭐: YTD 150-200L and Monthly 12-16L
-                    <br />• 3⭐: YTD 100-150L and Monthly 8-12L
-                    <br />• 2⭐: YTD 50-100L and Monthly 4-8L
-                    <br />• 1⭐: YTD &gt; 50L and Monthly &gt; 4L
+                    Savings are in ₹{" "}
+                    {starRatingsFormat === "crores" ? "crores" : "lakhs"}. Stars
+                    are calculated based on MONTHLY criteria only:
+                    <br />• 5⭐: Monthly &gt; 16L
+                    <br />• 4⭐: Monthly 12-16L
+                    <br />• 3⭐: Monthly 8-12L
+                    <br />• 2⭐: Monthly 4-8L
+                    <br />• 1⭐: Monthly &gt; 4L
+                    <br />• 0⭐: Monthly ≤ 4L
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1064,146 +1291,329 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                     <div className="space-y-4">
                       {/* 12-Month Trend Chart */}
                       <div className="h-[350px] w-full">
-                      <ChartContainer
-                        config={{
-                          savings: {
-                            label: `Savings (₹${starRatingsFormat === 'crores' ? 'Cr' : 'L'})`,
-                            color: "hsl(var(--success))",
-                          },
-                          stars: {
-                            label: "Stars ⭐",
-                            color: "hsl(var(--warning))",
-                          },
-                        }}
-                        className="h-full w-full"
-                      >
-                        <BarChart
-                          data={monthlyTrendData.map((row) => {
-                            const parseSavings = (savingsStr: string): number => {
-                              if (!savingsStr) return 0;
-                              const isCrores = savingsStr.includes("Cr");
-                              const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
-                              const value = parseFloat(numStr) || 0;
-                              return isCrores ? value * 100 : value;
-                            };
-                            return {
-                              month: row.month,
-                              savings: parseSavings(row.savings),
-                              stars: row.stars || 0,
-                            };
-                          })}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        <ChartContainer
+                          config={{
+                            savings: {
+                              label: `Savings (₹${
+                                starRatingsFormat === "crores" ? "Cr" : "L"
+                              })`,
+                              color: "hsl(var(--success))",
+                            },
+                            stars: {
+                              label: "Stars ⭐",
+                              color: "hsl(var(--warning))",
+                            },
+                          }}
+                          className="h-full w-full"
                         >
-                          <defs>
-                            <linearGradient id="gradientSavings" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="hsl(var(--success))" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="hsl(var(--success))" stopOpacity={0.4} />
-                            </linearGradient>
-                            <linearGradient id="gradientStars" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="hsl(var(--warning))" stopOpacity={0.9} />
-                              <stop offset="100%" stopColor="hsl(var(--warning))" stopOpacity={0.4} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" />
-                          <YAxis yAxisId="left" />
-                          <YAxis yAxisId="right" orientation="right" />
-                          <ChartTooltip
-                            content={({ active, payload, label }) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-md">
-                                    <div className="grid gap-2">
-                                      <div className="flex flex-col">
-                                        <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                          {label}
-                                        </span>
-                                      </div>
-                                      {payload.map((entry, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                          <div
-                                            className="h-2 w-2 rounded-full"
-                                            style={{ backgroundColor: entry.color }}
-                                          />
-                                          <span className="text-[0.70rem] text-muted-foreground">
-                                            {entry.dataKey === "savings"
-                                              ? `Savings: ${formatCurrency(entry.value as number, 1, starRatingsFormat)}`
-                                              : `Stars: ${entry.value} ⭐`}
+                          <BarChart
+                            data={monthlyTrendData.map((row) => {
+                              const parseSavings = (
+                                savingsStr: string | number
+                              ): number => {
+                                if (!savingsStr && savingsStr !== 0) return 0;
+
+                                // Handle numeric values - assume they're already in lakhs
+                                if (typeof savingsStr === "number") {
+                                  return savingsStr;
+                                }
+
+                                // Handle string values
+                                const str = String(savingsStr);
+                                const isCrores =
+                                  str.includes("Cr") || str.includes("cr");
+                                const numStr = str
+                                  .replace(/[CrL₹crl,]/g, "")
+                                  .trim();
+                                const value = parseFloat(numStr) || 0;
+
+                                // Always convert to lakhs for consistent internal storage
+                                return isCrores ? value * 100 : value;
+                              };
+                              // Convert month format to month name
+                              let monthName = row.month;
+                              // Convert to string to safely check for includes
+                              const monthStr = row.month
+                                ? String(row.month)
+                                : "";
+                              if (monthStr && monthStr.includes("-")) {
+                                // Format: "YYYY-MM" -> "MMM"
+                                const [year, month] = monthStr.split("-");
+                                const monthNum = parseInt(month);
+                                if (
+                                  !isNaN(monthNum) &&
+                                  monthNum >= 1 &&
+                                  monthNum <= 12
+                                ) {
+                                  const date = new Date(
+                                    parseInt(year),
+                                    monthNum - 1,
+                                    1
+                                  );
+                                  monthName = date.toLocaleString("default", {
+                                    month: "short",
+                                  });
+                                }
+                              } else if (
+                                monthStr &&
+                                !isNaN(parseInt(monthStr))
+                              ) {
+                                // If it's just a number, convert to month name
+                                const monthNum = parseInt(monthStr);
+                                if (monthNum >= 1 && monthNum <= 12) {
+                                  const date = new Date(2024, monthNum - 1, 1);
+                                  monthName = date.toLocaleString("default", {
+                                    month: "short",
+                                  });
+                                }
+                              }
+                              return {
+                                month: monthName,
+                                savings: parseSavings(row.savings),
+                                stars:
+                                  typeof row.stars === "number"
+                                    ? row.stars
+                                    : parseInt(String(row.stars || 0)) || 0,
+                              };
+                            })}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <defs>
+                              <linearGradient
+                                id="gradientSavings"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="0%"
+                                  stopColor="hsl(var(--success))"
+                                  stopOpacity={0.9}
+                                />
+                                <stop
+                                  offset="100%"
+                                  stopColor="hsl(var(--success))"
+                                  stopOpacity={0.4}
+                                />
+                              </linearGradient>
+                              <linearGradient
+                                id="gradientStars"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="0%"
+                                  stopColor="hsl(var(--warning))"
+                                  stopOpacity={0.9}
+                                />
+                                <stop
+                                  offset="100%"
+                                  stopColor="hsl(var(--warning))"
+                                  stopOpacity={0.4}
+                                />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                            <YAxis yAxisId="left" />
+                            <YAxis yAxisId="right" orientation="right" />
+                            <ChartTooltip
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="rounded-lg border bg-background p-2 shadow-md">
+                                      <div className="grid gap-2">
+                                        <div className="flex flex-col">
+                                          <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                            {label}
                                           </span>
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <ChartLegend content={<ChartLegendContent />} />
-                          <Bar
-                            yAxisId="left"
-                            dataKey="savings"
-                            fill="url(#gradientSavings)"
-                            radius={[8, 8, 0, 0]}
-                          />
-                          <Bar
-                            yAxisId="right"
-                            dataKey="stars"
-                            fill="url(#gradientStars)"
-                            radius={[8, 8, 0, 0]}
-                          />
-                        </BarChart>
-                      </ChartContainer>
-                    </div>
+                                        {payload.map((entry, index) => {
+                                          const dataKey =
+                                            entry.dataKey as string;
 
-                    {/* Monthly Breakdown Table */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-muted-foreground">
-                            <th className="py-1">Month</th>
-                            <th className="py-1">Savings (₹{starRatingsFormat === 'crores' ? 'Cr' : 'L'})</th>
-                            <th className="py-1">Stars</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {monthlyTrendData.map((row) => {
-                            // Parse savings string to number
-                            const parseSavings = (savingsStr: string): number => {
-                              if (!savingsStr) return 0;
-                              const isCrores = savingsStr.includes("Cr");
-                              const numStr = savingsStr.replace(/[CrL₹]/g, "").trim();
-                              const value = parseFloat(numStr) || 0;
-                              return isCrores ? value * 100 : value;
-                            };
-                            const savingsValue = parseSavings(row.savings);
-                            return (
-                              <tr key={row.month}>
-                                <td className="py-1">{row.month}</td>
-                                <td className="py-1">{formatCurrency(savingsValue, 1, starRatingsFormat)}</td>
-                                <td className="py-1">
-                                  <div className="flex items-center gap-1">
-                                    {Array.from({ length: 5 }).map((_, i) => (
-                                      <Star
-                                        key={i}
-                                        className={`h-3 w-3 ${
-                                          i < (row.stars || 0)
-                                            ? 'fill-yellow-400 text-yellow-400'
-                                            : 'text-muted-foreground'
-                                        }`}
-                                      />
-                                    ))}
-                                    <span className="ml-1 text-xs text-muted-foreground">
-                                      ({row.stars || 0})
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                                          // For dual-axis charts, always get the actual data value from payload
+                                          // entry.value is the rendered/calculated value which can be 0 for non-active bars
+                                          // entry.payload contains the original data point with all values
+                                          const payloadData =
+                                            entry.payload as Record<
+                                              string,
+                                              any
+                                            >;
+                                          const value =
+                                            payloadData?.[dataKey] ??
+                                            entry.value;
+
+                                          // Convert to number and handle edge cases
+                                          const numValue =
+                                            typeof value === "number"
+                                              ? isNaN(value)
+                                                ? 0
+                                                : value
+                                              : parseFloat(
+                                                  String(value || 0)
+                                                ) || 0;
+
+                                          return (
+                                            <div
+                                              key={`${dataKey}-${index}`}
+                                              className="flex items-center gap-2"
+                                            >
+                                              <div
+                                                className="h-2 w-2 rounded-full"
+                                                style={{
+                                                  backgroundColor: entry.color,
+                                                }}
+                                              />
+                                              <span className="text-[0.70rem] text-muted-foreground">
+                                                {dataKey === "savings"
+                                                  ? `Savings: ${formatCurrency(
+                                                      numValue,
+                                                      1,
+                                                      starRatingsFormat
+                                                    )}`
+                                                  : `Stars: ${Math.round(
+                                                      numValue
+                                                    )} ⭐`}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <ChartLegend content={<ChartLegendContent />} />
+                            <Bar
+                              yAxisId="left"
+                              dataKey="savings"
+                              fill="url(#gradientSavings)"
+                              radius={[8, 8, 0, 0]}
+                            />
+                            <Bar
+                              yAxisId="right"
+                              dataKey="stars"
+                              fill="url(#gradientStars)"
+                              radius={[8, 8, 0, 0]}
+                            />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
+
+                      {/* Monthly Breakdown Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-muted-foreground">
+                              <th className="py-1">Month</th>
+                              <th className="py-1">
+                                Savings (₹
+                                {starRatingsFormat === "crores" ? "Cr" : "L"})
+                              </th>
+                              <th className="py-1">Stars</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {monthlyTrendData.map((row) => {
+                              // Parse savings string to number
+                              // Always normalize to lakhs for consistent internal storage
+                              const parseSavings = (
+                                savingsStr: string | number
+                              ): number => {
+                                if (!savingsStr && savingsStr !== 0) return 0;
+
+                                // Handle numeric values - assume they're already in lakhs
+                                if (typeof savingsStr === "number") {
+                                  return savingsStr;
+                                }
+
+                                // Handle string values
+                                const str = String(savingsStr);
+                                const isCrores =
+                                  str.includes("Cr") || str.includes("cr");
+                                const numStr = str
+                                  .replace(/[CrL₹crl,]/g, "")
+                                  .trim();
+                                const value = parseFloat(numStr) || 0;
+
+                                // Always convert to lakhs for consistent internal storage
+                                return isCrores ? value * 100 : value;
+                              };
+                              const savingsValue = parseSavings(row.savings);
+                              // Convert month format to month name
+                              let monthName = row.month;
+                              // Convert to string to safely check for includes
+                              const monthStr = row.month
+                                ? String(row.month)
+                                : "";
+                              if (monthStr && monthStr.includes("-")) {
+                                const [year, month] = monthStr.split("-");
+                                const monthNum = parseInt(month);
+                                if (
+                                  !isNaN(monthNum) &&
+                                  monthNum >= 1 &&
+                                  monthNum <= 12
+                                ) {
+                                  const date = new Date(
+                                    parseInt(year),
+                                    monthNum - 1,
+                                    1
+                                  );
+                                  monthName = date.toLocaleString("default", {
+                                    month: "short",
+                                  });
+                                }
+                              } else if (
+                                monthStr &&
+                                !isNaN(parseInt(monthStr))
+                              ) {
+                                const monthNum = parseInt(monthStr);
+                                if (monthNum >= 1 && monthNum <= 12) {
+                                  const date = new Date(2024, monthNum - 1, 1);
+                                  monthName = date.toLocaleString("default", {
+                                    month: "short",
+                                  });
+                                }
+                              }
+                              return (
+                                <tr key={row.month}>
+                                  <td className="py-1">{monthName}</td>
+                                  <td className="py-1">
+                                    {formatCurrency(
+                                      savingsValue,
+                                      1,
+                                      starRatingsFormat
+                                    )}
+                                  </td>
+                                  <td className="py-1">
+                                    <div className="flex items-center gap-1">
+                                      {Array.from({ length: 5 }).map((_, i) => (
+                                        <Star
+                                          key={i}
+                                          className={`h-3 w-3 ${
+                                            i < (row.stars || 0)
+                                              ? "fill-yellow-400 text-yellow-400"
+                                              : "text-muted-foreground"
+                                          }`}
+                                        />
+                                      ))}
+                                      <span className="ml-1 text-xs text-muted-foreground">
+                                        ({row.stars || 0})
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
@@ -1213,11 +1623,15 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 </div>
                 <AlertDialogFooter className="pt-3 mt-3 border-t">
                   <AlertDialogCancel>Close</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => {
-                    setStarDrillOpen(false);
-                    setStarDrillPlant(null);
-                    setStarDrillPlantId(null);
-                  }}>OK</AlertDialogAction>
+                  <AlertDialogAction
+                    onClick={() => {
+                      setStarDrillOpen(false);
+                      setStarDrillPlant(null);
+                      setStarDrillPlantId(null);
+                    }}
+                  >
+                    OK
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1276,10 +1690,13 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    {bpSpreadBP ? `${bpSpreadBP} - Copied by Plants` : "Copied by Plants"}
+                    {bpSpreadBP
+                      ? `${bpSpreadBP} - Copied by Plants`
+                      : "Copied by Plants"}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Only benchmarked BPs can be copied. List shows plants and dates of copy.
+                    Only benchmarked BPs can be copied. List shows plants and
+                    dates of copy.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="overflow-x-auto">
@@ -1299,7 +1716,12 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                       ))}
                       {bpSpreadRows.length === 0 && (
                         <tr>
-                          <td className="py-1 text-muted-foreground" colSpan={2}>No copies yet</td>
+                          <td
+                            className="py-1 text-muted-foreground"
+                            colSpan={2}
+                          >
+                            No copies yet
+                          </td>
                         </tr>
                       )}
                     </tbody>
@@ -1307,7 +1729,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Close</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setBpSpreadOpen(false)}>OK</AlertDialogAction>
+                  <AlertDialogAction onClick={() => setBpSpreadOpen(false)}>
+                    OK
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1333,169 +1757,245 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               </div>
             ) : (
               (() => {
-              const leaderboardData = mergedLeaderboard;
-              
-              return (
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    Total points earned through benchmark BPs (Origin: 10 points, Copier: 5 points)
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-muted-foreground">
-                          <th className="py-1">Serial Number</th>
-                          <th className="py-1">Plant</th>
-                          <th className="py-1 text-center pl-2">Total Points</th>
-                          <th className="py-1 text-center pl-1">Rank</th>
-                          <th className="py-1 text-center pl-1">Breakdown</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {leaderboardData.map((entry, index) => {
-                          // Calculate rank based on total points (same points = same rank)
-                          // Since data is sorted by totalPoints descending, rank is based on position
-                          let rank = index + 1;
-                          // If same points as previous entry, use the same rank
-                          if (index > 0 && leaderboardData[index - 1].totalPoints === entry.totalPoints) {
-                            // Find the first entry with these points to get the correct rank
-                            for (let i = index - 1; i >= 0; i--) {
-                              if (leaderboardData[i].totalPoints !== entry.totalPoints) {
-                                rank = i + 2;
-                                break;
-                              }
-                              rank = i + 1;
-                            }
-                          }
-                          
-                          return (
-                          <tr
-                            key={entry.plant_id || entry.plant}
-                            className="hover:bg-accent/50 hover:border-l-4 hover:border-l-primary cursor-pointer transition-smooth"
-                            onClick={() => {
-                              const asCopier = entry.breakdown.filter((b) => b.type === "Copier");
-                              const copiedCount = asCopier.length;
-                              const copiedPoints = asCopier.reduce((s, b) => s + (b.points || 0), 0);
+                const leaderboardData = mergedLeaderboard;
 
-                              const asOrigin = entry.breakdown.filter((b) => b.type === "Origin");
-                              const perBPMap = new Map<string, { title: string; copies: number; points: number }>();
-                              asOrigin.forEach((b) => {
-                                const bpTitle = b.bpTitle || b.bp_title;
-                                const prev = perBPMap.get(bpTitle) || { title: bpTitle, copies: 0, points: 0 };
-                                prev.copies += 1;
-                                prev.points += b.points || 0;
-                                perBPMap.set(bpTitle, prev);
-                              });
-                              const originated = Array.from(perBPMap.values());
-                              const originatedCount = originated.length;
-                              const originatedPoints = originated.reduce((s, r) => s + r.points, 0);
-
-                              setLbDrillPlant(entry.plant_name || entry.plant);
-                              setLbDrillData({
-                                copied: asCopier.map((c) => ({ 
-                                  title: c.bpTitle || c.bp_title, 
-                                  points: c.points, 
-                                  date: c.date 
-                                })),
-                                copiedCount,
-                                copiedPoints,
-                                originated,
-                                originatedCount,
-                                originatedPoints,
-                              });
-                              setLbDrillOpen(true);
-                            }}
-                          >
-                            <td className="py-1 font-medium text-xs">
-                              {index + 1}
-                            </td>
-                            <td className="py-1 font-medium text-xs">{entry.plant_name || entry.plant}</td>
-                            <td className="py-1 text-center pl-2">
-                              <Badge variant="outline" className="bg-primary/10 text-primary border-primary text-xs px-1 py-0">
-                                {entry.totalPoints || entry.total_points}
-                              </Badge>
-                            </td>
-                            <td className="py-1 text-center pl-1">
-                              {rank === 1 && <Badge variant="outline" className="bg-primary/10 text-primary text-xs px-1 py-0">#1</Badge>}
-                              {rank === 2 && <Badge variant="outline" className="bg-secondary/10 text-secondary text-xs px-1 py-0">#2</Badge>}
-                              {rank === 3 && <Badge variant="outline" className="bg-accent/10 text-accent-foreground text-xs px-1 py-0">#3</Badge>}
-                              {rank > 3 && <span className="text-muted-foreground text-xs">#{rank}</span>}
-                            </td>
-                            <td className="py-1 text-center pl-1">
-                              <div className="text-xs text-muted-foreground">
-                                <div className="text-xs">{entry.breakdown.length} entries</div>
-                                <div className="mt-0.5 space-y-0.5">
-                                  {entry.breakdown.slice(0, 2).map((item, idx) => {
-                                    const bpTitle = item.bpTitle || item.bp_title;
-                                    return (
-                                      <div key={idx} className="flex items-center justify-center gap-1">
-                                        <Badge variant="outline" className={
-                                          item.type === "Origin" 
-                                            ? "bg-success/10 text-success border-success text-xs px-1 py-0" 
-                                            : "bg-primary/10 text-primary border-primary text-xs px-1 py-0"
-                                        }>
-                                          {item.type}: {item.points}
-                                        </Badge>
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span className="text-xs max-w-[200px] truncate block">
-                                                {bpTitle}
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              <p className="max-w-xs">{bpTitle}</p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                    );
-                                  })}
-                                  {entry.breakdown.length > 2 && (
-                                    <div className="text-xs text-muted-foreground text-center">
-                                      +{entry.breakdown.length - 2} more...
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
+                return (
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Total points earned through benchmark BPs (Origin: 10
+                      points, Copier: 5 points)
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="py-1">Serial Number</th>
+                            <th className="py-1">Plant</th>
+                            <th className="py-1 text-center pl-2">
+                              Total Points
+                            </th>
+                            <th className="py-1 text-center pl-1">Rank</th>
+                            <th className="py-1 text-center pl-1">Action</th>
                           </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y">
+                          {leaderboardData.map((entry, index) => {
+                            // Calculate rank based on total points (same points = same rank)
+                            // Since data is sorted by totalPoints descending, rank is based on position
+                            let rank = index + 1;
+                            // If same points as previous entry, use the same rank
+                            if (
+                              index > 0 &&
+                              leaderboardData[index - 1].totalPoints ===
+                                entry.totalPoints
+                            ) {
+                              // Find the first entry with these points to get the correct rank
+                              for (let i = index - 1; i >= 0; i--) {
+                                if (
+                                  leaderboardData[i].totalPoints !==
+                                  entry.totalPoints
+                                ) {
+                                  rank = i + 2;
+                                  break;
+                                }
+                                rank = i + 1;
+                              }
+                            }
+
+                            return (
+                              <tr
+                                key={entry.plant_id || entry.plant}
+                                className="hover:bg-accent/50 transition-smooth"
+                              >
+                                <td className="py-1 font-medium text-xs">
+                                  {index + 1}
+                                </td>
+                                <td className="py-1 font-medium text-xs">
+                                  {entry.plant_name || entry.plant}
+                                </td>
+                                <td className="py-1 text-center pl-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-primary/10 text-primary border-primary text-xs px-1 py-0"
+                                  >
+                                    {entry.totalPoints || entry.total_points}
+                                  </Badge>
+                                </td>
+                                <td className="py-1 text-center pl-1">
+                                  {rank === 1 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-primary/10 text-primary text-xs px-1 py-0"
+                                    >
+                                      #1
+                                    </Badge>
+                                  )}
+                                  {rank === 2 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-secondary/10 text-secondary text-xs px-1 py-0"
+                                    >
+                                      #2
+                                    </Badge>
+                                  )}
+                                  {rank === 3 && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-accent/10 text-accent-foreground text-xs px-1 py-0"
+                                    >
+                                      #3
+                                    </Badge>
+                                  )}
+                                  {rank > 3 && (
+                                    <span className="text-muted-foreground text-xs">
+                                      #{rank}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-1 text-center pl-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs h-7 px-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const asCopier = entry.breakdown.filter(
+                                        (b) => b.type === "Copier"
+                                      );
+                                      const copiedCount = asCopier.length;
+                                      const copiedPoints = asCopier.reduce(
+                                        (s, b) => s + (b.points || 0),
+                                        0
+                                      );
+
+                                      const asOrigin = entry.breakdown.filter(
+                                        (b) => b.type === "Origin"
+                                      );
+                                      const perBPMap = new Map<
+                                        string,
+                                        {
+                                          title: string;
+                                          copies: number;
+                                          points: number;
+                                        }
+                                      >();
+                                      asOrigin.forEach((b) => {
+                                        const bpTitle = b.bpTitle || b.bp_title;
+                                        const prev = perBPMap.get(bpTitle) || {
+                                          title: bpTitle,
+                                          copies: 0,
+                                          points: 0,
+                                        };
+                                        prev.copies += 1;
+                                        prev.points += b.points || 0;
+                                        perBPMap.set(bpTitle, prev);
+                                      });
+                                      const originated = Array.from(
+                                        perBPMap.values()
+                                      );
+                                      const originatedCount = originated.length;
+                                      const originatedPoints =
+                                        originated.reduce(
+                                          (s, r) => s + r.points,
+                                          0
+                                        );
+
+                                      setLbDrillPlant(
+                                        entry.plant_name || entry.plant
+                                      );
+                                      setLbDrillData({
+                                        copied: asCopier.map((c) => ({
+                                          title: c.bpTitle || c.bp_title,
+                                          points: c.points,
+                                          date: c.date,
+                                        })),
+                                        copiedCount,
+                                        copiedPoints,
+                                        originated,
+                                        originatedCount,
+                                        originatedPoints,
+                                      });
+                                      setLbDrillOpen(true);
+                                    }}
+                                  >
+                                    View Breakdown
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              );
-            })())}
+                );
+              })()
+            )}
             {/* Leaderboard Drilldown: Origin impact */}
             <AlertDialog open={lbDrillOpen} onOpenChange={setLbDrillOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>
-                    {lbDrillPlant ? `${lbDrillPlant} - Benchmark Points Breakdown` : "Benchmark Points Breakdown"}
+                    {lbDrillPlant
+                      ? `${lbDrillPlant} - Benchmark Points Breakdown`
+                      : "Benchmark Points Breakdown"}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Only benchmarked BPs can be copied. Summary below reflects Origin points earned when other plants copied.
+                    Only benchmarked BPs can be copied. Summary below reflects
+                    Origin points earned when other plants copied.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-4 text-sm">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="p-3 border rounded-lg">
-                      <div className="font-medium mb-1">BPs Copied by This Plant</div>
-                      <div>Count: <span className="font-semibold">{lbDrillData?.copiedCount ?? lbDrillData?.copiedByCount ?? 0}</span></div>
-                      <div>Points: <span className="font-semibold">{lbDrillData?.copiedPoints ?? lbDrillData?.copiedByPoints ?? 0}</span></div>
+                      <div className="font-medium mb-1">
+                        BPs Copied by This Plant
+                      </div>
+                      <div>
+                        Count:{" "}
+                        <span className="font-semibold">
+                          {lbDrillData?.copiedCount ??
+                            lbDrillData?.copiedByCount ??
+                            0}
+                        </span>
+                      </div>
+                      <div>
+                        Points:{" "}
+                        <span className="font-semibold">
+                          {lbDrillData?.copiedPoints ??
+                            lbDrillData?.copiedByPoints ??
+                            0}
+                        </span>
+                      </div>
                     </div>
                     <div className="p-3 border rounded-lg">
-                      <div className="font-medium mb-1">Originated BPs (Benchmarked)</div>
-                      <div>Count: <span className="font-semibold">{lbDrillData?.originatedCount ?? lbDrillData?.benchmarkedBPsCount ?? 0}</span></div>
-                      <div>Points: <span className="font-semibold">{lbDrillData?.originatedPoints ?? lbDrillData?.benchmarkedBPsPoints ?? 0}</span></div>
+                      <div className="font-medium mb-1">
+                        Originated BPs (Benchmarked)
+                      </div>
+                      <div>
+                        Count:{" "}
+                        <span className="font-semibold">
+                          {lbDrillData?.originatedCount ??
+                            lbDrillData?.benchmarkedBPsCount ??
+                            0}
+                        </span>
+                      </div>
+                      <div>
+                        Points:{" "}
+                        <span className="font-semibold">
+                          {lbDrillData?.originatedPoints ??
+                            lbDrillData?.benchmarkedBPsPoints ??
+                            0}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="font-medium mb-2">Copied by This Plant (Details)</div>
+                      <div className="font-medium mb-2">
+                        Copied by This Plant (Details)
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
@@ -1526,9 +2026,16 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                                 <td className="py-1">{row.date}</td>
                               </tr>
                             ))}
-                            {(!lbDrillData || (lbDrillData.copied && lbDrillData.copied.length === 0)) && (
+                            {(!lbDrillData ||
+                              (lbDrillData.copied &&
+                                lbDrillData.copied.length === 0)) && (
                               <tr>
-                                <td className="py-1 text-muted-foreground" colSpan={3}>No copied entries</td>
+                                <td
+                                  className="py-1 text-muted-foreground"
+                                  colSpan={3}
+                                >
+                                  No copied entries
+                                </td>
                               </tr>
                             )}
                           </tbody>
@@ -1536,7 +2043,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                       </div>
                     </div>
                     <div>
-                      <div className="font-medium mb-2">Benchmarked BPs (Details)</div>
+                      <div className="font-medium mb-2">
+                        Benchmarked BPs (Details)
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
@@ -1547,7 +2056,11 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                             </tr>
                           </thead>
                           <tbody className="divide-y">
-                            {(lbDrillData?.originated ?? lbDrillData?.perBP ?? []).map((row: any) => (
+                            {(
+                              lbDrillData?.originated ??
+                              lbDrillData?.perBP ??
+                              []
+                            ).map((row: any) => (
                               <tr key={row.title}>
                                 <td className="py-1 max-w-[300px]">
                                   <TooltipProvider>
@@ -1567,9 +2080,19 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                                 <td className="py-1">{row.points}</td>
                               </tr>
                             ))}
-                            {(!lbDrillData || ((lbDrillData.originated && lbDrillData.originated.length === 0) || (!lbDrillData.originated && (!lbDrillData.perBP || lbDrillData.perBP.length === 0)))) && (
+                            {(!lbDrillData ||
+                              (lbDrillData.originated &&
+                                lbDrillData.originated.length === 0) ||
+                              (!lbDrillData.originated &&
+                                (!lbDrillData.perBP ||
+                                  lbDrillData.perBP.length === 0))) && (
                               <tr>
-                                <td className="py-1 text-muted-foreground" colSpan={3}>No originated benchmarked BPs</td>
+                                <td
+                                  className="py-1 text-muted-foreground"
+                                  colSpan={3}
+                                >
+                                  No originated benchmarked BPs
+                                </td>
                               </tr>
                             )}
                           </tbody>
@@ -1580,7 +2103,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                 </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Close</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setLbDrillOpen(false)}>OK</AlertDialogAction>
+                  <AlertDialogAction onClick={() => setLbDrillOpen(false)}>
+                    OK
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1601,16 +2126,20 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               <div className="text-center py-8 text-muted-foreground">
                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2 opacity-50" />
                 <p className="text-sm">Failed to load recent practices</p>
-                <p className="text-xs text-muted-foreground mt-1">Please try again later</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Please try again later
+                </p>
               </div>
             ) : recentPractices && recentPractices.length > 0 ? (
               <div className="space-y-4">
                 {recentPractices.slice(0, 4).map((practice) => {
                   // Calculate time ago from submitted_date_iso (preferred) or submitted_date
-                  const submittedDate = practice.submitted_date_iso 
-                    ? new Date(practice.submitted_date_iso) 
-                    : (practice.submitted_date ? new Date(practice.submitted_date) : null);
-                  
+                  const submittedDate = practice.submitted_date_iso
+                    ? new Date(practice.submitted_date_iso)
+                    : practice.submitted_date
+                    ? new Date(practice.submitted_date)
+                    : null;
+
                   const timeAgo = submittedDate
                     ? (() => {
                         const diffMs = Date.now() - submittedDate.getTime();
@@ -1618,18 +2147,30 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         const diffDays = Math.floor(diffHours / 24);
                         const diffWeeks = Math.floor(diffDays / 7);
                         const diffMonths = Math.floor(diffDays / 30);
-                        
-                        if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
-                        if (diffWeeks > 0) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
-                        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-                        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-                        return 'Just now';
+
+                        if (diffMonths > 0)
+                          return `${diffMonths} month${
+                            diffMonths > 1 ? "s" : ""
+                          } ago`;
+                        if (diffWeeks > 0)
+                          return `${diffWeeks} week${
+                            diffWeeks > 1 ? "s" : ""
+                          } ago`;
+                        if (diffDays > 0)
+                          return `${diffDays} day${
+                            diffDays > 1 ? "s" : ""
+                          } ago`;
+                        if (diffHours > 0)
+                          return `${diffHours} hour${
+                            diffHours > 1 ? "s" : ""
+                          } ago`;
+                        return "Just now";
                       })()
-                    : practice.submitted_date || 'Recently';
-                  
+                    : practice.submitted_date || "Recently";
+
                   return (
-                    <div 
-                      key={practice.id} 
+                    <div
+                      key={practice.id}
                       className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
                       onClick={() => {
                         navigate(`/practices/${practice.id}`);
@@ -1639,7 +2180,9 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <h4 className="font-medium truncate">{practice.title}</h4>
+                              <h4 className="font-medium truncate">
+                                {practice.title}
+                              </h4>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-md">{practice.title}</p>
@@ -1648,10 +2191,18 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         </TooltipProvider>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="outline" className="text-xs">
-                            {practice.category_name || practice.category || "Other"}
+                            {practice.category_name ||
+                              practice.category ||
+                              "Other"}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">{practice.plant_name || practice.plant || "Unknown Plant"}</span>
-                          <span className="text-xs text-muted-foreground">• {timeAgo}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {practice.plant_name ||
+                              practice.plant ||
+                              "Unknown Plant"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            • {timeAgo}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -1663,8 +2214,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                             {practice.question_count} Q&A
                           </Badge>
                         )}
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1688,12 +2239,16 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
       </div>
 
       {/* Active Plants Dialog */}
-      <AlertDialog open={activePlantsDialogOpen} onOpenChange={setActivePlantsDialogOpen}>
+      <AlertDialog
+        open={activePlantsDialogOpen}
+        onOpenChange={setActivePlantsDialogOpen}
+      >
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Active Plants Status (YTD)</AlertDialogTitle>
             <AlertDialogDescription>
-              View which plants are active (have submitted best practices YTD) and which are inactive (no submissions YTD).
+              View which plants are active (have submitted best practices YTD)
+              and which are inactive (no submissions YTD).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
@@ -1711,8 +2266,14 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                   >
                     <span className="font-medium text-sm">{plant.name}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground">{plant.submitted} submission{plant.submitted !== 1 ? 's' : ''} (YTD)</span>
-                      <Badge variant="outline" className="bg-success/10 text-success border-success">
+                      <span className="text-xs text-muted-foreground">
+                        {plant.submitted} submission
+                        {plant.submitted !== 1 ? "s" : ""} (YTD)
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="bg-success/10 text-success border-success"
+                      >
                         Active
                       </Badge>
                     </div>
@@ -1736,10 +2297,17 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         key={plant.name}
                         className="flex items-center justify-between p-3 rounded-lg border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-colors"
                       >
-                        <span className="font-medium text-sm">{plant.name}</span>
+                        <span className="font-medium text-sm">
+                          {plant.name}
+                        </span>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">0 submissions (YTD)</span>
-                          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive">
+                          <span className="text-xs text-muted-foreground">
+                            0 submissions (YTD)
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="bg-destructive/10 text-destructive border-destructive"
+                          >
                             Inactive
                           </Badge>
                         </div>
@@ -1764,7 +2332,10 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
       </AlertDialog>
 
       {/* Star Rating Info Dialog */}
-      <AlertDialog open={starRatingInfoOpen} onOpenChange={setStarRatingInfoOpen}>
+      <AlertDialog
+        open={starRatingInfoOpen}
+        onOpenChange={setStarRatingInfoOpen}
+      >
         <AlertDialogContent className="max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
@@ -1772,7 +2343,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
               Star Rating Criteria
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Understand how star ratings are calculated based on monthly and YTD savings
+              Understand how star ratings are calculated based on monthly and
+              YTD savings
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">

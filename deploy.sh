@@ -84,7 +84,29 @@ npm install
 
 # Build frontend
 print_status "Building frontend..."
+
+# Check if public/images exists before build
+if [ -d "$FRONTEND_DIR/public/images" ]; then
+    print_status "Public images folder found - will be copied to dist during build"
+    IMAGE_COUNT=$(find "$FRONTEND_DIR/public/images" -type f | wc -l)
+    print_status "Found $IMAGE_COUNT image(s) in public/images"
+else
+    print_warning "Public images folder not found - static images may be missing"
+fi
+
+# Build frontend (Vite automatically copies public/ to dist/)
 npm run build
+
+# Verify images are in dist folder after build
+if [ -d "$FRONTEND_DIR/dist/images" ]; then
+    print_status "✓ Frontend images successfully copied to dist/images"
+    IMAGE_COUNT=$(find "$FRONTEND_DIR/dist/images" -type f | wc -l)
+    print_status "Found $IMAGE_COUNT image(s) in dist/images"
+    ls -la "$FRONTEND_DIR/dist/images" | head -5
+else
+    print_error "✗ Frontend images NOT found in dist/images after build!"
+    print_error "This will cause images to not display. Check Vite build output."
+fi
 
 # Create logs directory
 mkdir -p $PROJECT_DIR/logs

@@ -683,7 +683,7 @@ export class AnalyticsService {
         },
       },
       orderBy: { submittedDate: 'desc' },
-      take: 10,
+      // Removed take limit to show all practices in monthly breakdown
     });
 
     return practices.map((practice) => ({

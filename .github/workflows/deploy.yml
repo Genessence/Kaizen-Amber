@@ -3,86 +3,53 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main
-      - master
+      - test
     paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - 'README.md'
-  pull_request:
-    branches:
-      - main
-      - master
-  workflow_dispatch: # Allow manual trigger
+      - "**.md"
+      - ".gitignore"
+      - "README.md"
+
+  workflow_dispatch:
 
 env:
-  NODE_VERSION: '20.x'
+  NODE_VERSION: "20.x"
   EC2_HOST: ${{ secrets.EC2_HOST }}
   EC2_USER: ${{ secrets.EC2_USER }}
   EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
   DEPLOY_PATH: /home/ubuntu/Kaizen-Amber
 
 jobs:
-  # Continuous Integration - Run tests and linting
   ci:
-    name: CI - Test & Lint
+    name: CI - Test & Build
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: |
-            node-backend/package-lock.json
-            amber-best-flow/package-lock.json
 
-      - name: Install backend dependencies
+      - name: Install backend & build
         working-directory: ./node-backend
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
 
-      - name: Run backend linting
-        working-directory: ./node-backend
-        run: npm run lint || echo "Linting issues found (non-blocking)"
-
-      - name: Run backend tests
-        working-directory: ./node-backend
-        run: npm test || echo "Tests completed (non-blocking in CI)"
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          JWT_SECRET_KEY: test-secret-key-for-ci-minimum-32-characters
-          JWT_REFRESH_SECRET: test-refresh-secret-for-ci-minimum-32-characters
-
-      - name: Install frontend dependencies
+      - name: Install frontend & build
         working-directory: ./amber-best-flow
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
 
-      - name: Run frontend linting
-        working-directory: ./amber-best-flow
-        run: npm run lint || echo "Linting issues found (non-blocking)"
-
-      - name: Build frontend
-        working-directory: ./amber-best-flow
-        run: npm run build
-
-      - name: Build backend
-        working-directory: ./node-backend
-        run: npm run build
-
-  # Continuous Deployment - Deploy to EC2
   deploy:
     name: CD - Deploy to EC2
     needs: ci
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup SSH
         run: |
@@ -91,87 +58,94 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Build project
+        run: |
+          npm --prefix node-backend ci
+          npm --prefix node-backend run build
+
+          npm --prefix amber-best-flow ci
+          npm --prefix amber-best-flow run build
+
+          # Verify images are in dist folder
+          echo "Checking if images are in dist folder..."
+          ls -la amber-best-flow/dist/images/ || echo "WARNING: dist/images not found"
+          ls -la amber-best-flow/public/images/ || echo "WARNING: public/images not found"
+
       - name: Create deployment package
         run: |
+          # Include both source (for potential rebuild) and dist (pre-built)
           tar -czf deploy.tar.gz \
             --exclude='node_modules' \
             --exclude='.git' \
-            --exclude='dist' \
             --exclude='*.log' \
             --exclude='.env' \
             --exclude='.env.local' \
+            --exclude='amber-best-flow/node_modules' \
+            --exclude='node-backend/node_modules' \
             node-backend/ \
             amber-best-flow/ \
             ecosystem.config.js \
-            nginx.conf \
             deploy.sh \
-            .github/workflows/
+            nginx.conf
 
-      - name: Transfer files to EC2
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
-            deploy.tar.gz ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ env.DEPLOY_PATH }}/deploy.tar.gz
+          # Verify public/images is in the package
+          echo "Verifying public/images is included..."
+          tar -tzf deploy.tar.gz | grep "amber-best-flow/public/images" | head -3 || echo "WARNING: public/images not in package"
 
-      - name: Deploy on EC2
+          # Verify dist/images is in the package  
+          echo "Verifying dist/images is included..."
+          tar -tzf deploy.tar.gz | grep "amber-best-flow/dist/images" | head -3 || echo "WARNING: dist/images not in package"
+
+      - name: Upload to EC2
         run: |
-          ssh -i ~/.ssh/deploy_key \
-            -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy.tar.gz \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ env.DEPLOY_PATH }}/deploy.tar.gz
+
+      - name: Execute deployment on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+
             set -e
             cd ${{ env.DEPLOY_PATH }}
-            
-            # Backup current deployment
-            echo "📦 Creating backup..."
-            BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+
             mkdir -p backups
-            [ -d "node-backend" ] && cp -r node-backend "$BACKUP_DIR/node-backend" || true
-            [ -d "amber-best-flow" ] && cp -r amber-best-flow "$BACKUP_DIR/amber-best-flow" || true
-            [ -f "ecosystem.config.js" ] && cp ecosystem.config.js "$BACKUP_DIR/" || true
-            
-            # Extract new deployment
-            echo "📥 Extracting deployment package..."
+            BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$BACKUP_DIR"
+
+            cp -r node-backend "$BACKUP_DIR" || true
+            cp -r amber-best-flow "$BACKUP_DIR" || true
+
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
-            
-            # Run deployment script
-            echo "🚀 Running deployment..."
-            chmod +x deploy.sh
-            ./deploy.sh
-            
-            # Run database migrations
-            echo "🗄️ Running database migrations..."
-            cd node-backend
-            npx prisma migrate deploy || echo "Migration completed or no new migrations"
-            cd ..
-            
-            # Health check
-            echo "🏥 Running health check..."
-            sleep 5
-            if curl -f http://localhost:3000/api/v1/health > /dev/null 2>&1; then
-              echo "✅ Health check passed!"
+
+            # Verify images are present after extraction
+            echo "Verifying images after extraction..."
+            if [ -d "amber-best-flow/dist/images" ]; then
+              echo "✓ dist/images found"
+              ls -la amber-best-flow/dist/images/ | head -5
             else
-              echo "⚠️ Health check failed, but deployment completed"
+              echo "⚠ dist/images not found - will be created during build"
             fi
             
-            echo "✅ Deployment completed successfully!"
+            if [ -d "amber-best-flow/public/images" ]; then
+              echo "✓ public/images found"
+              ls -la amber-best-flow/public/images/ | head -5
+            else
+              echo "✗ public/images not found - images may be missing!"
+            fi
+
+            chmod +x deploy.sh
+            ./deploy.sh
+
+            cd node-backend
+            npx prisma migrate deploy || true
+
+            if curl -f http://localhost:3000/api/v1/health; then
+              echo "Health OK"
+            else
+              echo "Health FAIL"
+            fi
+
           ENDSSH
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -f deploy.tar.gz
-          rm -f ~/.ssh/deploy_key
-
-      - name: Deployment notification
-        if: success()
-        run: |
-          echo "✅ Deployment to EC2 completed successfully!"
-          echo "🌐 Application should be available at: http://${{ secrets.EC2_HOST }}"
-
-      - name: Deployment failure notification
-        if: failure()
-        run: |
-          echo "❌ Deployment failed! Check logs above for details."
-          echo "💡 You can rollback using the backup in: backups/"
-

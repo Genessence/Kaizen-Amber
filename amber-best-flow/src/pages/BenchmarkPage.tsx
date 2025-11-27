@@ -21,29 +21,40 @@ const BenchmarkPage = () => {
   const unbenchmarkMutation = useUnbenchmarkPractice();
 
   // Transform benchmarked list items to include full practice details
+  // Filter to only show benchmarked BPs (is_benchmarked === true)
+  // Exclude practices from the same plant as the current user (they're already in View Best Practices)
   const practicesWithDetails = useMemo(() => {
     if (!benchmarkedList) return [];
 
-    return benchmarkedList.map((benchmarkedItem: any) => {
-      // Map backend fields to component expected fields
-      return {
-        id: benchmarkedItem.practice_id, // Use practice_id as the main ID
-        practice_id: benchmarkedItem.practice_id,
-        title: benchmarkedItem.practice_title,
-        category: benchmarkedItem.practice_category,
-        category_name: benchmarkedItem.practice_category,
-        plant: benchmarkedItem.plant_name,
-        plant_name: benchmarkedItem.plant_name,
-        description: benchmarkedItem.description || `${benchmarkedItem.practice_title} - Best practice from ${benchmarkedItem.plant_name}`,
-        problemStatement: benchmarkedItem.problem_statement || '',
-        solution: benchmarkedItem.solution || benchmarkedItem.description || '',
-        benchmarked_date: benchmarkedItem.benchmarked_date,
-        copy_count: benchmarkedItem.copy_count || 0,
-        // Include original benchmarked item data for reference
-        benchmarked_item: benchmarkedItem
-      };
-    });
-  }, [benchmarkedList]);
+    return benchmarkedList
+      .filter((benchmarkedItem: any) => {
+        // Only show benchmarked practices
+        if (benchmarkedItem.is_benchmarked === false) return false;
+        // Exclude practices from the same plant as the current user
+        if (user?.plant_id && benchmarkedItem.plant_id && benchmarkedItem.plant_id === user.plant_id) return false;
+        return true;
+      })
+      .map((benchmarkedItem: any) => {
+        // Map backend fields to component expected fields
+        return {
+          id: benchmarkedItem.practice_id, // Use practice_id as the main ID
+          practice_id: benchmarkedItem.practice_id,
+          plant_id: benchmarkedItem.plant_id, // Include plant_id for comparison
+          title: benchmarkedItem.practice_title,
+          category: benchmarkedItem.practice_category,
+          category_name: benchmarkedItem.practice_category,
+          plant: benchmarkedItem.plant_name,
+          plant_name: benchmarkedItem.plant_name,
+          description: benchmarkedItem.description || `${benchmarkedItem.practice_title} - Best practice from ${benchmarkedItem.plant_name}`,
+          problemStatement: benchmarkedItem.problem_statement || '',
+          solution: benchmarkedItem.solution || benchmarkedItem.description || '',
+          benchmarked_date: benchmarkedItem.benchmarked_date,
+          copy_count: benchmarkedItem.copy_count || 0,
+          // Include original benchmarked item data for reference
+          benchmarked_item: benchmarkedItem
+        };
+      });
+  }, [benchmarkedList, user?.plant_id]);
 
   if (!user) {
     return null;
@@ -134,6 +145,7 @@ const BenchmarkPage = () => {
       items={practicesWithDetails}
       onUnbenchmark={handleUnbenchmark}
       onCopyAndImplement={handleCopyAndImplement}
+      currentUserPlantId={user?.plant_id}
     />
   );
 };

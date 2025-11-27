@@ -41,10 +41,8 @@ import {
   useCostSavings,
   useCostAnalysis,
   usePlantMonthlyBreakdown,
-  useRecalculateSavings,
 } from "@/hooks/useAnalytics";
 import { useAuth } from "@/contexts/AuthContext";
-import { RefreshCw } from "lucide-react";
 
 interface AnalyticsProps {
   userRole: "plant" | "hq";
@@ -69,7 +67,6 @@ const Analytics = ({ userRole }: AnalyticsProps) => {
   const { user } = useAuth();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
-  const recalculateSavingsMutation = useRecalculateSavings();
 
   // Toggle state for Yearly Analytics - only for HQ admin
   const [yearlyViewMode, setYearlyViewMode] = useState<
@@ -342,24 +339,6 @@ const Analytics = ({ userRole }: AnalyticsProps) => {
                 : "Monthly Cost Savings"}
             </CardTitle>
             <div className="flex items-center gap-2">
-              {userRole === "hq" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => recalculateSavingsMutation.mutate(currentYear)}
-                  disabled={recalculateSavingsMutation.isPending}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${
-                      recalculateSavingsMutation.isPending ? "animate-spin" : ""
-                    }`}
-                  />
-                  {recalculateSavingsMutation.isPending
-                    ? "Recalculating..."
-                    : "Recalculate"}
-                </Button>
-              )}
               <ToggleGroup
                 type="single"
                 value={yearlyCostSavingsViewMode}
@@ -614,6 +593,7 @@ type PlantCost = {
   lastMonth: number; // savings last month (in lakhs ₹)
   currentMonth: number; // savings current month (in lakhs ₹)
   ytdTillLastMonth: number; // savings YTD till last month (in lakhs ₹)
+  ytdTotal: number; // savings YTD total including current month (in lakhs ₹)
 };
 type PlantMonthlyBreakdown = {
   month: string;
@@ -795,7 +775,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
     const data = (costAnalysisData as any)?.data;
     if (!data || !Array.isArray(data)) return [];
 
-    // The API returns PlantSavings with last_month, current_month, ytd_till_last_month
+    // The API returns PlantSavings with last_month, current_month, ytd_till_last_month, ytd_total
     return data.map((plant: any) => ({
       id: plant.plant_id,
       name: plant.plant_name,
@@ -803,6 +783,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       lastMonth: parseFloat(plant.last_month || "0"),
       currentMonth: parseFloat(plant.current_month || "0"),
       ytdTillLastMonth: parseFloat(plant.ytd_till_last_month || "0"),
+      ytdTotal: parseFloat(plant.ytd_total || "0"), // Current YTD including current month
     }));
   }, [costAnalysisData]);
 
@@ -832,7 +813,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       acc.ytdTillLastMonth += p.ytdTillLastMonth;
       return acc;
     },
-    { lastMonth: 0, currentMonth: 0, ytdTillLastMonth: 0 }
+    { lastMonth: 0, currentMonth: 0, ytdTillLastMonth: 0, ytdTotal: 0 }
   );
 
   const companyTotals = visible.reduce(
@@ -840,9 +821,10 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
       acc.lastMonth += p.lastMonth;
       acc.currentMonth += p.currentMonth;
       acc.ytdTillLastMonth += p.ytdTillLastMonth;
+      acc.ytdTotal += p.ytdTotal || p.ytdTillLastMonth; // Use ytdTotal if available
       return acc;
     },
-    { lastMonth: 0, currentMonth: 0, ytdTillLastMonth: 0 }
+    { lastMonth: 0, currentMonth: 0, ytdTillLastMonth: 0, ytdTotal: 0 }
   );
 
   const [plantDetailOpen, setPlantDetailOpen] = useState(false);
@@ -1129,7 +1111,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
           const yearlyData = plantsForCharts.map((p, idx) => ({
             name: getPlantShortName(p.name),
             fullName: p.name,
-            value: p.ytdTillLastMonth,
+            value: p.ytdTotal || p.ytdTillLastMonth, // Use ytdTotal (current YTD) for the chart, fallback to ytdTillLastMonth
             colorIndex: idx % COLOR_PALETTE.length,
             color: COLOR_PALETTE[idx % COLOR_PALETTE.length],
           }));
@@ -1366,7 +1348,7 @@ const CostAnalysis = ({ userRole }: { userRole: "plant" | "hq" }) => {
                                 textAnchor="middle"
                                 dominantBaseline="middle"
                                 fill="hsl(var(--foreground))"
-                                fontSize="28"
+                                fontSize="18"
                                 fontWeight="700"
                                 className="font-bold pointer-events-none"
                               >

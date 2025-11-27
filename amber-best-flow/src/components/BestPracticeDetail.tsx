@@ -359,10 +359,14 @@ const BestPracticeDetail = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Best_Practice_${practice.id}_${practice.title.replace(
-        /[^a-z0-9]/gi,
-        "_"
-      )}.pdf`;
+      // Format: Title of BP_Plant Name
+      const sanitizedTitle = practice.title
+        .replace(/[^a-z0-9\s]/gi, "_")
+        .replace(/\s+/g, "_");
+      const sanitizedPlant = (practice.plant || "Unknown_Plant")
+        .replace(/[^a-z0-9\s]/gi, "_")
+        .replace(/\s+/g, "_");
+      link.download = `${sanitizedTitle}_${sanitizedPlant}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

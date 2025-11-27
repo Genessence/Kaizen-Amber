@@ -292,10 +292,14 @@ class APIService {
     if (params?.plant_id) queryParams.append('plant_id', params.plant_id);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.search) queryParams.append('search', params.search);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
     if (params?.is_benchmarked !== undefined) {
       // Convert boolean to string 'true' or 'false'
       queryParams.append('is_benchmarked', params.is_benchmarked ? 'true' : 'false');
     }
+    if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
     if (params?.limit) queryParams.append('page_size', params.limit.toString());
     if (params?.offset) {
       const page = Math.floor(params.offset / (params.limit || 20)) + 1;
@@ -498,8 +502,10 @@ class APIService {
       practice_id: item.id,
       practice_title: item.title,
       practice_category: item.category?.name || '',
+      plant_id: item.plant?.id || item.plant_id,
       plant_name: item.plant?.name || item.plant_name,
       benchmarked_date: item.benchmarked_date,
+      is_benchmarked: item.is_benchmarked !== false,
       copy_count: 0,
       problem_statement: item.problem_statement || '',
       solution: item.solution || item.description || '',

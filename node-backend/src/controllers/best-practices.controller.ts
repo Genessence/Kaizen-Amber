@@ -51,7 +51,13 @@ export class BestPracticesController {
       }
 
       if (status) {
-        where.status = status;
+        // Support comma-separated statuses (e.g., "submitted,approved")
+        if (status.includes(',')) {
+          const statuses = status.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          where.status = { in: statuses };
+        } else {
+          where.status = status;
+        }
       }
 
       // Handle is_benchmarked filter: 'true', 'false', or undefined
@@ -169,6 +175,22 @@ export class BestPracticesController {
               },
             },
           },
+          images: {
+            select: {
+              id: true,
+              imageType: true,
+              blobUrl: true,
+            },
+          },
+          documents: {
+            select: {
+              id: true,
+              documentName: true,
+              blobUrl: true,
+              fileSize: true,
+              contentType: true,
+            },
+          },
         },
       });
 
@@ -212,6 +234,15 @@ export class BestPracticesController {
         submitted_date: practice.submittedDate?.toISOString(),
         is_benchmarked: !!practice.benchmarked,
         benchmarked_date: practice.benchmarked?.benchmarkedDate.toISOString(),
+        before_image_url: practice.images?.find(img => img.imageType === 'before')?.blobUrl || null,
+        after_image_url: practice.images?.find(img => img.imageType === 'after')?.blobUrl || null,
+        documents: practice.documents?.map(doc => ({
+          id: doc.id,
+          document_name: doc.documentName,
+          blob_url: doc.blobUrl,
+          file_size: doc.fileSize,
+          content_type: doc.contentType,
+        })) || [],
         created_at: practice.createdAt.toISOString(),
         updated_at: practice.updatedAt.toISOString(),
       });

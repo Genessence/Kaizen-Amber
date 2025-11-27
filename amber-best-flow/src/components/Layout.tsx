@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Navigation from '@/components/Navigation';
 import NotificationCenter from '@/components/NotificationCenter';
+import DraftsDialog from '@/components/DraftsDialog';
 import { Building2, Shield, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -51,6 +52,7 @@ const Layout = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {user.role === "plant" && <DraftsDialog />}
               <NotificationCenter />
               <Badge variant="outline" className="flex items-center space-x-1">
                 <Shield className="h-3 w-3" />

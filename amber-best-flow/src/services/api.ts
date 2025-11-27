@@ -342,6 +342,19 @@ class APIService {
   }
 
   /**
+   * Get draft practices for current user
+   */
+  async getDraftPractices(): Promise<BestPracticeListItem[]> {
+    const response = await this.listBestPractices({
+      status: 'draft',
+      limit: 100,
+      sort_by: 'created_at',
+      sort_order: 'desc'
+    });
+    return response.data;
+  }
+
+  /**
    * Get single best practice with full details
    */
   async getBestPractice(practiceId: string): Promise<BestPractice> {
@@ -375,6 +388,9 @@ class APIService {
       submitted_date: data.submitted_date,
       is_benchmarked: data.is_benchmarked || false,
       benchmarked_date: data.benchmarked_date,
+      before_image_url: data.before_image_url,
+      after_image_url: data.after_image_url,
+      documents: data.documents || [],
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

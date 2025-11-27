@@ -68,6 +68,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
       search: searchTerm || undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
+      // Exclude drafts - only show submitted and approved practices
+      // Drafts are only visible in the DraftsDialog
+      status: 'submitted,approved',
       limit: 50, // Reduced from 100 for faster initial load
       sort_by: "created_at", // Sort by creation date
       sort_order: "desc", // Newest first

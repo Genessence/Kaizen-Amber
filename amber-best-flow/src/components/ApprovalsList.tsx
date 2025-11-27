@@ -31,9 +31,9 @@ const ApprovalsList = ({ userRole, isBenchmarked, onToggleBenchmark }: Approvals
   const [showFilters, setShowFilters] = useState(false);
   const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
 
-  // Fetch submitted practices from all plants - these can be benchmarked by HQ
+  // Fetch only benchmarked practices for the approvals page
   const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
-    status: 'submitted',
+    is_benchmarked: true,
     limit: 100,
   });
 

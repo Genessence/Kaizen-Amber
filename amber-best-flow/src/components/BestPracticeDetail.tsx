@@ -43,10 +43,20 @@ import { formatDate } from "@/lib/utils";
 import { pdf } from "@react-pdf/renderer";
 import BestPracticePDF from "./BestPracticePDF";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+// Extended type to support both API format (snake_case) and prop format (camelCase)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PracticeData = Record<string, any>;
 
 interface BestPracticeDetailProps {
   userRole: "plant" | "hq";
-  practice?: any;
+  practice?: PracticeData;
   isBenchmarked?: boolean;
   onToggleBenchmark?: () => void;
 }
@@ -65,13 +75,18 @@ const BestPracticeDetail = ({
   const { socket, isConnected } = useSocket();
 
   // Determine practice ID - prioritize URL param, then prop, then apiPractice
-  const practiceIdFromProps = propPractice?.id;
+  const practiceIdFromProps = (propPractice as PracticeData)?.id as
+    | string
+    | undefined;
   const { data: apiPractice, isLoading: practiceLoading } = useBestPractice(
     urlId || practiceIdFromProps
   );
 
   // Get practice ID - URL param takes precedence, then apiPractice, then propPractice
-  const practiceId = urlId || apiPractice?.id || propPractice?.id;
+  const practiceId =
+    urlId ||
+    apiPractice?.id ||
+    ((propPractice as PracticeData)?.id as string | undefined);
 
   // Debug logging
   useEffect(() => {
@@ -82,7 +97,7 @@ const BestPracticeDetail = ({
       hasApiPractice: !!apiPractice,
       hasPropPractice: !!propPractice,
     });
-  }, [practiceId, apiPractice?.id, propPractice?.id]);
+  }, [practiceId, apiPractice, propPractice]);
 
   // Fetch questions for this practice
   const { data: questionsData = [], isLoading: questionsLoading } =
@@ -96,13 +111,19 @@ const BestPracticeDetail = ({
     socket.emit("join-practice", practiceId);
 
     // Listen for new questions
-    const handleQuestionAdded = (question: any) => {
+    const handleQuestionAdded = (_question: {
+      id: string;
+      practice_id: string;
+    }) => {
       // Invalidate questions query to refetch
       queryClient.invalidateQueries({ queryKey: ["questions", practiceId] });
     };
 
     // Listen for question answers
-    const handleQuestionAnswered = (question: any) => {
+    const handleQuestionAnswered = (_question: {
+      id: string;
+      practice_id: string;
+    }) => {
       // Invalidate questions query to refetch
       queryClient.invalidateQueries({ queryKey: ["questions", practiceId] });
     };
@@ -123,7 +144,7 @@ const BestPracticeDetail = ({
     data: imagesData = [],
     isLoading: imagesLoading,
     error: imagesError,
-  } = usePracticeImages(practiceId);
+  } = usePracticeImages(practiceId as string);
 
   // Debug logging for images
   useEffect(() => {
@@ -138,7 +159,7 @@ const BestPracticeDetail = ({
 
   // Fetch documents for this practice
   const { data: documentsData = [], isLoading: documentsLoading } =
-    usePracticeDocuments(practiceId);
+    usePracticeDocuments(practiceId as string);
 
   // Q&A mutations
   const askQuestionMutation = useAskQuestion();
@@ -175,68 +196,59 @@ const BestPracticeDetail = ({
   };
 
   // Use API data if available, otherwise use prop data
+  const practiceData = (apiPractice || propPractice) as PracticeData;
   const practice =
     apiPractice || propPractice
       ? {
-          id: (apiPractice || propPractice).id || "BP-001",
-          title: (apiPractice || propPractice).title || "Best Practice",
+          id: practiceData?.id || "BP-001",
+          title: practiceData?.title || "Best Practice",
           category:
-            (apiPractice || propPractice).category_name ||
-            (apiPractice || propPractice).category ||
-            "Other",
+            practiceData?.category_name || practiceData?.category || "Other",
           submittedBy:
-            (apiPractice || propPractice).submitted_by_name ||
-            (apiPractice || propPractice).submittedBy ||
+            practiceData?.submitted_by_name ||
+            practiceData?.submittedBy ||
             "Unknown",
-          submitted_by_user_id: (apiPractice || propPractice)
-            .submitted_by_user_id,
+          submitted_by_user_id: practiceData?.submitted_by_user_id,
           plant:
-            (apiPractice || propPractice).plant_name ||
-            (apiPractice || propPractice).plant ||
-            "Unknown Plant",
+            practiceData?.plant_name || practiceData?.plant || "Unknown Plant",
           submittedDate:
-            (apiPractice || propPractice).submitted_date ||
-            (apiPractice || propPractice).submittedDate ||
-            (apiPractice || propPractice).date ||
+            practiceData?.submitted_date ||
+            practiceData?.submittedDate ||
+            practiceData?.date ||
             new Date().toISOString().split("T")[0],
-          approvedDate: (apiPractice || propPractice).approvedDate,
-          approvedBy: (apiPractice || propPractice).approvedBy,
-          copiedToPlants: (apiPractice || propPractice).copiedToPlants || [],
-          description: (apiPractice || propPractice).description || "",
+          approvedDate: practiceData?.approvedDate,
+          approvedBy: practiceData?.approvedBy,
+          copiedToPlants: practiceData?.copiedToPlants || [],
+          description: practiceData?.description || "",
           problemStatement:
-            (apiPractice || propPractice).problem_statement ||
-            (apiPractice || propPractice).problemStatement ||
+            practiceData?.problem_statement ||
+            practiceData?.problemStatement ||
             "",
-          solution: (apiPractice || propPractice).solution || "",
-          benefits: Array.isArray((apiPractice || propPractice).benefits)
-            ? (apiPractice || propPractice).benefits
+          solution: practiceData?.solution || "",
+          benefits: Array.isArray(practiceData?.benefits)
+            ? practiceData.benefits
+            : typeof practiceData?.benefits === "string"
+            ? practiceData.benefits
             : [],
-          metrics: (apiPractice || propPractice).metrics || "",
-          implementation: (apiPractice || propPractice).implementation || "",
-          investment: (apiPractice || propPractice).investment || "",
+          metrics: practiceData?.metrics || "",
+          implementation: practiceData?.implementation || "",
+          investment: practiceData?.investment || "",
           questions:
-            (apiPractice || propPractice).question_count ||
-            (apiPractice || propPractice).questions ||
-            0,
-          savings: (apiPractice || propPractice).savings,
-          savingsAmount: (apiPractice || propPractice).savings_amount,
-          savingsCurrency:
-            (apiPractice || propPractice).savings_currency || "lakhs",
-          savingsPeriod:
-            (apiPractice || propPractice).savings_period || "monthly",
+            practiceData?.question_count || practiceData?.questions || 0,
+          savings: practiceData?.savings,
+          savingsAmount: practiceData?.savings_amount,
+          savingsCurrency: practiceData?.savings_currency || "lakhs",
+          savingsPeriod: practiceData?.savings_period || "monthly",
           areaImplemented:
-            (apiPractice || propPractice).area_implemented ||
-            (apiPractice || propPractice).areaImplemented ||
+            practiceData?.area_implemented ||
+            practiceData?.areaImplemented ||
             "",
-          beforeImage: (apiPractice || propPractice).beforeImage,
-          afterImage: (apiPractice || propPractice).afterImage,
-          is_benchmarked:
-            (apiPractice || propPractice).is_benchmarked ?? isBenchmarked,
+          beforeImage: practiceData?.beforeImage,
+          afterImage: practiceData?.afterImage,
+          is_benchmarked: practiceData?.is_benchmarked ?? isBenchmarked,
           images:
-            imagesData.length > 0
-              ? imagesData
-              : (apiPractice || propPractice).images || [],
-          documents: (apiPractice || propPractice).documents || [],
+            imagesData.length > 0 ? imagesData : practiceData?.images || [],
+          documents: practiceData?.documents || [],
         }
       : {
           id: "BP-001",
@@ -329,7 +341,7 @@ const BestPracticeDetail = ({
         areaImplemented: practice.areaImplemented,
         problemStatement: practice.problemStatement,
         solution: practice.solution,
-        benefits: practice.benefits,
+        benefits: Array.isArray(practice.benefits) ? practice.benefits : [],
         metrics: practice.metrics,
         savings_amount: (apiPractice || propPractice)?.savings_amount,
         savings_currency:
@@ -364,15 +376,53 @@ const BestPracticeDetail = ({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Best Practices
-        </Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Best Practices
+          </Button>
 
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{practice.title}</h1>
-          <div className="flex items-center space-x-2 mt-1">
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            {/* Helpful button - removed mock data, can be implemented later if backend supports it */}
+            {/* <Button variant="outline" size="sm">
+              <ThumbsUp className="h-4 w-4 mr-2" />
+              Helpful ({practice.helpful_count || 0})
+            </Button> */}
+            {/* Benchmark button - Only visible to HQ users */}
+            {userRole === "hq" && (
+              <Button
+                size="sm"
+                variant={practice.is_benchmarked ? "outline" : "default"}
+                onClick={handleBenchmarkToggle}
+                disabled={isBenchmarkProcessing}
+              >
+                {isBenchmarkProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {practice.is_benchmarked
+                      ? "Unbenchmarking..."
+                      : "Benchmarking..."}
+                  </>
+                ) : practice.is_benchmarked ? (
+                  "Unbenchmark"
+                ) : (
+                  "Benchmark"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="pb-4 border-b border-border/50">
+          <h1 className="text-3xl font-bold break-words leading-tight tracking-tight text-foreground mb-3">
+            {practice.title}
+          </h1>
+          <div className="flex items-center space-x-2 mt-2">
             <Badge
               variant="outline"
               className="bg-category-quality/10 text-category-quality border-category-quality"
@@ -384,40 +434,6 @@ const BestPracticeDetail = ({
               ID: {practice.id}
             </span>
           </div>
-        </div>
-
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
-          </Button>
-          {/* Helpful button - removed mock data, can be implemented later if backend supports it */}
-          {/* <Button variant="outline" size="sm">
-            <ThumbsUp className="h-4 w-4 mr-2" />
-            Helpful ({practice.helpful_count || 0})
-          </Button> */}
-          {/* Benchmark button - Only visible to HQ users */}
-          {userRole === "hq" && (
-            <Button
-              size="sm"
-              variant={practice.is_benchmarked ? "outline" : "default"}
-              onClick={handleBenchmarkToggle}
-              disabled={isBenchmarkProcessing}
-            >
-              {isBenchmarkProcessing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {practice.is_benchmarked
-                    ? "Unbenchmarking..."
-                    : "Benchmarking..."}
-                </>
-              ) : practice.is_benchmarked ? (
-                "Unbenchmark"
-              ) : (
-                "Benchmark"
-              )}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -440,7 +456,9 @@ const BestPracticeDetail = ({
             <div className="flex items-center space-x-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Submitted by</p>
+                <p className="text-sm font-semibold text-foreground">
+                  Submitted by
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {practice.submittedBy}
                 </p>
@@ -450,7 +468,7 @@ const BestPracticeDetail = ({
             <div className="flex items-center space-x-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Plant</p>
+                <p className="text-sm font-semibold text-foreground">Plant</p>
                 <p className="text-sm text-muted-foreground">
                   {practice.plant}
                 </p>
@@ -460,7 +478,9 @@ const BestPracticeDetail = ({
             <div className="flex items-center space-x-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Submitted</p>
+                <p className="text-sm font-semibold text-foreground">
+                  Submitted
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {formatDate(practice.submittedDate)}
                 </p>
@@ -473,7 +493,9 @@ const BestPracticeDetail = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Building2 className="h-4 w-4 text-primary" />
-                <h4 className="font-medium">Horizontal Deployment</h4>
+                <h4 className="font-semibold text-base">
+                  Horizontal Deployment
+                </h4>
               </div>
               <Badge variant="outline" className="bg-primary/10 text-primary">
                 Copied to {practice.copiedToPlants?.length ?? 0} plant
@@ -495,15 +517,21 @@ const BestPracticeDetail = ({
 
           {/* Description */}
           <div>
-            <h4 className="font-medium mb-2">Overview</h4>
-            <p className="text-muted-foreground">{practice.description}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">
+              Overview
+            </h4>
+            <p className="text-muted-foreground leading-relaxed">
+              {practice.description}
+            </p>
           </div>
 
           {/* Area Implemented In */}
           {practice.areaImplemented && (
             <div>
-              <h4 className="font-medium mb-2">Area Implemented In</h4>
-              <p className="text-muted-foreground">
+              <h4 className="text-lg font-semibold mb-3 text-foreground">
+                Area Implemented In
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
                 {practice.areaImplemented}
               </p>
             </div>
@@ -511,21 +539,29 @@ const BestPracticeDetail = ({
 
           {/* Problem Statement */}
           <div>
-            <h4 className="font-medium mb-2">Problem Statement</h4>
-            <p className="text-muted-foreground">{practice.problemStatement}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">
+              Problem Statement
+            </h4>
+            <p className="text-muted-foreground leading-relaxed">
+              {practice.problemStatement}
+            </p>
           </div>
 
           {/* Solution */}
           <div>
-            <h4 className="font-medium mb-2">Solution</h4>
-            <p className="text-muted-foreground">{practice.solution}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">
+              Solution
+            </h4>
+            <p className="text-muted-foreground leading-relaxed">
+              {practice.solution}
+            </p>
           </div>
 
           {/* Before/After Images */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-dashed">
               <CardContent className="p-4">
-                <p className="font-medium mb-3 text-center">
+                <p className="font-semibold text-base mb-3 text-center">
                   Before Implementation
                 </p>
                 {imagesLoading ? (
@@ -602,7 +638,7 @@ const BestPracticeDetail = ({
 
             <Card className="border-dashed">
               <CardContent className="p-4">
-                <p className="font-medium mb-3 text-center">
+                <p className="font-semibold text-base mb-3 text-center">
                   After Implementation
                 </p>
                 {imagesLoading ? (
@@ -680,7 +716,7 @@ const BestPracticeDetail = ({
 
           {/* Supporting Documents */}
           <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
+            <h4 className="text-lg font-semibold mb-3 flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5" />
               Supporting Documents
             </h4>
@@ -739,7 +775,7 @@ const BestPracticeDetail = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p
-                              className="font-medium text-sm truncate"
+                              className="font-semibold text-sm truncate text-foreground"
                               title={doc.document_name}
                             >
                               {doc.document_name}
@@ -780,7 +816,9 @@ const BestPracticeDetail = ({
           {/* Benefits & Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-medium mb-3">Key Benefits Achieved</h4>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">
+                Key Benefits Achieved
+              </h4>
               <ul className="space-y-2">
                 {(() => {
                   // Handle both array and string formats
@@ -817,7 +855,9 @@ const BestPracticeDetail = ({
             </div>
 
             <div>
-              <h4 className="font-medium mb-3">Measurable Impact</h4>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">
+                Measurable Impact
+              </h4>
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <p className="text-sm">{practice.metrics}</p>
               </div>
@@ -827,10 +867,12 @@ const BestPracticeDetail = ({
           {/* Investment in the Best Practice */}
           {practice.investment && (
             <div>
-              <h4 className="font-medium mb-2">
+              <h4 className="text-lg font-semibold mb-3 text-foreground">
                 Investment in the Best Practice
               </h4>
-              <p className="text-muted-foreground">{practice.investment}</p>
+              <p className="text-muted-foreground leading-relaxed">
+                {practice.investment}
+              </p>
             </div>
           )}
 
@@ -862,10 +904,10 @@ const BestPracticeDetail = ({
 
           {/* Implementation Details */}
           <div>
-            <h4 className="font-medium mb-2">
+            <h4 className="text-lg font-semibold mb-3 text-foreground">
               Implementation Timeline & Resources
             </h4>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground leading-relaxed">
               {practice.implementation || "Not specified"}
             </p>
           </div>
@@ -913,7 +955,7 @@ const BestPracticeDetail = ({
               return (
                 <div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium flex items-center space-x-2">
+                    <h4 className="font-semibold text-base flex items-center space-x-2 text-foreground">
                       <MessageCircle className="h-5 w-5 text-primary" />
                       <span>Ask a Question</span>
                     </h4>
@@ -994,7 +1036,9 @@ const BestPracticeDetail = ({
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <p className="font-medium text-sm">{q.asked_by_name}</p>
+                        <p className="font-semibold text-sm text-foreground">
+                          {q.asked_by_name}
+                        </p>
                         <span className="text-xs text-muted-foreground">
                           {formatDate(q.created_at)}
                         </span>
@@ -1009,7 +1053,7 @@ const BestPracticeDetail = ({
                     <div className="ml-11 p-4 bg-accent/30 rounded-lg">
                       <div className="flex items-center space-x-2 mb-2">
                         <Shield className="h-4 w-4 text-primary" />
-                        <p className="font-medium text-sm text-primary">
+                        <p className="font-semibold text-sm text-primary">
                           {q.answered_by_name || "Author"} Response
                         </p>
                         {q.answered_at && (

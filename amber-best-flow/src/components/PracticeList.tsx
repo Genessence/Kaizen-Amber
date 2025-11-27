@@ -32,6 +32,7 @@ import {
 } from "@/hooks/useBenchmarking";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PracticeListProps {
   userRole: "plant" | "hq";
@@ -430,58 +431,47 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                   className="flex items-center justify-between p-6 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth group hover-lift"
                   onClick={() => navigate(`/practices/${practice.id}`)}
                 >
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start space-x-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                          {practice.title}
-                        </h3>
+                      <div className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
+                                {practice.title}
+                              </h3>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md">{practice.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <p className="text-muted-foreground mt-1 line-clamp-2">
                           {practice.description}
                         </p>
-
+                        
                         <div className="flex items-center space-x-4 mt-3 flex-wrap gap-2">
                           <div className="flex items-center space-x-2">
-                            <Badge
-                              variant="outline"
-                              className={getCategoryColor(
-                                practice.category_name || practice.category
-                              )}
-                            >
-                              {practice.category_name ||
-                                practice.category ||
-                                "Other"}
+                            <Badge variant="outline" className={getCategoryColor(practice.category_name || practice.category)}>
+                              {practice.category_name || practice.category || "Other"}
                             </Badge>
                           </div>
-
+                          
                           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                             <User className="h-3 w-3" />
-                            <span>
-                              {practice.submitted_by_name ||
-                                practice.submittedBy ||
-                                "Unknown"}
-                            </span>
+                            <span>{practice.submitted_by_name || practice.submittedBy || "Unknown"}</span>
                           </div>
-
+                          
                           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                             <Building2 className="h-3 w-3" />
-                            <span>
-                              {practice.plant_name ||
-                                practice.plant ||
-                                "Unknown"}
-                            </span>
+                            <span>{practice.plant_name || practice.plant || "Unknown"}</span>
                           </div>
-
+                          
                           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            <span>
-                              {formatDate(
-                                practice.submitted_date ||
-                                  practice.submittedDate
-                              )}
-                            </span>
+                            <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
                           </div>
-
+                          
                           {practice.savings_amount && (
                             <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                               <IndianRupee className="h-3 w-3" />

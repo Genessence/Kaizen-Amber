@@ -316,6 +316,7 @@ export class BestPracticesController {
               }
               return Promise.all(recalcPromises);
             }
+            return undefined;
           })
           .catch(error => {
             console.error('Failed to auto-recalculate savings:', error);

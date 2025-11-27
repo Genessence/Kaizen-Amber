@@ -1,5 +1,4 @@
 import prisma from '../config/database';
-import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { analyticsService } from './analytics.service';
 

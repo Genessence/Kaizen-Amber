@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Star, Copy } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,8 +75,17 @@ const BenchmarkedList = ({ items, onUnbenchmark, onCopyAndImplement }: Benchmark
                 className="flex items-center justify-between p-6 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth group hover-lift"
                 onClick={() => navigate(`/practices/${practice.id}`)}
               >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{practice.title}</h3>
+                <div className="flex-1 min-w-0">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">{practice.title}</h3>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-md">{practice.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <p className="text-muted-foreground mt-1 line-clamp-2">{practice.description}</p>
                   <div className="flex items-center space-x-4 mt-3">
                     <Badge variant="outline">{practice.category || practice.category_name}</Badge>

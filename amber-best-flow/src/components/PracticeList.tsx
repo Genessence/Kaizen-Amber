@@ -22,6 +22,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { usePlants } from "@/hooks/usePlants";
 import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
 import { formatDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PracticeListProps {
   userRole: "plant" | "hq";
@@ -356,12 +357,21 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
                 className="flex items-center justify-between p-6 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth group hover-lift"
                 onClick={() => navigate(`/practices/${practice.id}`)}
               >
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-start space-x-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                        {practice.title}
-                      </h3>
+                    <div className="flex-1 min-w-0">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
+                              {practice.title}
+                            </h3>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-md">{practice.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <p className="text-muted-foreground mt-1 line-clamp-2">
                         {practice.description}
                       </p>

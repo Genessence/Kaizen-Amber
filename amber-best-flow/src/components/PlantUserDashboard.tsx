@@ -78,6 +78,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { apiService } from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -921,8 +922,19 @@ const PlantUserDashboard = ({
                         }
                       }}
                     >
-                      <td className="py-2 px-3 font-medium text-xs">
-                        {practice.title}
+                      <td className="py-2 px-3 font-medium text-xs max-w-[300px]">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="truncate">
+                                {practice.title}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">{practice.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </td>
                       <td className="py-2 px-3 text-xs">{practice.category}</td>
                       <td className="py-2 px-3 text-xs">{practice.date}</td>
@@ -1038,10 +1050,19 @@ const PlantUserDashboard = ({
                           navigate(`/practices/${practice.id}`);
                         }}
                       >
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">
-                            {practice.title}
-                          </p>
+                        <div className="flex-1 min-w-0">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="font-medium text-sm truncate">
+                                  {practice.title}
+                                </p>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">{practice.title}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-xs text-muted-foreground">
                               {practice.category}
@@ -1496,8 +1517,17 @@ const PlantUserDashboard = ({
                         navigate(`/practices/${bp.practice_id}`);
                       }}
                     >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{bp.practice_title}</h4>
+                      <div className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <h4 className="font-medium truncate">{bp.practice_title}</h4>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md">{bp.practice_title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="outline" className="text-xs">
                             {bp.practice_category}
@@ -1609,8 +1639,17 @@ const PlantUserDashboard = ({
                           navigate(`/practices/${practice.id}`);
                         }}
                       >
-                        <div className="flex-1">
-                          <h4 className="font-medium">{practice.title}</h4>
+                        <div className="flex-1 min-w-0">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <h4 className="font-medium truncate">{practice.title}</h4>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-md">{practice.title}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <div className="flex items-center space-x-2 mt-1">
                             <Badge variant="outline" className="text-xs">
                               {practice.category_name || "Other"}
@@ -1816,9 +1855,18 @@ const PlantUserDashboard = ({
                                             >
                                               {item.type}: {item.points}
                                             </Badge>
-                                            <span className="text-xs">
-                                              {item.bp_title}
-                                            </span>
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="text-xs max-w-[200px] truncate block">
+                                                    {item.bp_title}
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="max-w-xs">{item.bp_title}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
                                           </div>
                                         ))}
                                       {entry.breakdown.length > 2 && (
@@ -1910,7 +1958,20 @@ const PlantUserDashboard = ({
                     <tbody className="divide-y">
                       {(lbDrillData?.copied ?? []).map((row, idx) => (
                         <tr key={idx}>
-                          <td className="py-1">{row.title}</td>
+                          <td className="py-1 max-w-[300px]">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="truncate">
+                                    {row.title}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{row.title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
                           <td className="py-1">{row.points}</td>
                           <td className="py-1">{formatDate(row.date)}</td>
                         </tr>
@@ -1945,7 +2006,20 @@ const PlantUserDashboard = ({
                     <tbody className="divide-y">
                       {(lbDrillData?.originated ?? []).map((row) => (
                         <tr key={row.title}>
-                          <td className="py-1">{row.title}</td>
+                          <td className="py-1 max-w-[300px]">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="truncate">
+                                    {row.title}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{row.title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
                           <td className="py-1">{row.copies}</td>
                           <td className="py-1">{row.points}</td>
                         </tr>

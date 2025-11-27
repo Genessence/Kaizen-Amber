@@ -32,6 +32,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BestPracticeDetailProps {
   userRole: "plant" | "hq";
@@ -223,51 +224,53 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Best Practices
-        </Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Best Practices
+          </Button>
+          
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            {/* Helpful button - removed mock data, can be implemented later if backend supports it */}
+            {/* <Button variant="outline" size="sm">
+              <ThumbsUp className="h-4 w-4 mr-2" />
+              Helpful ({practice.helpful_count || 0})
+            </Button> */}
+            {/* Benchmark button - Only visible to HQ users */}
+            {userRole === "hq" && (
+              <Button 
+                size="sm" 
+                variant={practice.is_benchmarked ? "outline" : "default"}
+                onClick={handleBenchmarkToggle}
+                disabled={isBenchmarkProcessing}
+              >
+                {isBenchmarkProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {practice.is_benchmarked ? "Unbenchmarking..." : "Benchmarking..."}
+                  </>
+                ) : (
+                  practice.is_benchmarked ? "Unbenchmark" : "Benchmark"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
         
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{practice.title}</h1>
-          <div className="flex items-center space-x-2 mt-1">
+        <div className="pb-4 border-b border-border/50">
+          <h1 className="text-3xl font-bold break-words leading-tight tracking-tight text-foreground mb-3">{practice.title}</h1>
+          <div className="flex items-center space-x-2 mt-2">
             <Badge variant="outline" className="bg-category-quality/10 text-category-quality border-category-quality">
               {practice.category}
             </Badge>
             {/* Approval badge removed */}
             <span className="text-sm text-muted-foreground">ID: {practice.id}</span>
           </div>
-        </div>
-
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
-          </Button>
-          {/* Helpful button - removed mock data, can be implemented later if backend supports it */}
-          {/* <Button variant="outline" size="sm">
-            <ThumbsUp className="h-4 w-4 mr-2" />
-            Helpful ({practice.helpful_count || 0})
-          </Button> */}
-          {/* Benchmark button - Only visible to HQ users */}
-          {userRole === "hq" && (
-            <Button 
-              size="sm" 
-              variant={practice.is_benchmarked ? "outline" : "default"}
-              onClick={handleBenchmarkToggle}
-              disabled={isBenchmarkProcessing}
-            >
-              {isBenchmarkProcessing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {practice.is_benchmarked ? "Unbenchmarking..." : "Benchmarking..."}
-                </>
-              ) : (
-                practice.is_benchmarked ? "Unbenchmark" : "Benchmark"
-              )}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -290,7 +293,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div className="flex items-center space-x-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Submitted by</p>
+                <p className="text-sm font-semibold text-foreground">Submitted by</p>
                 <p className="text-sm text-muted-foreground">{practice.submittedBy}</p>
               </div>
             </div>
@@ -298,7 +301,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div className="flex items-center space-x-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Plant</p>
+                <p className="text-sm font-semibold text-foreground">Plant</p>
                 <p className="text-sm text-muted-foreground">{practice.plant}</p>
               </div>
             </div>
@@ -306,7 +309,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div className="flex items-center space-x-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Submitted</p>
+                <p className="text-sm font-semibold text-foreground">Submitted</p>
                 <p className="text-sm text-muted-foreground">
                   {formatDate(practice.submittedDate || practice.submitted_date)}
                 </p>
@@ -319,7 +322,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Building2 className="h-4 w-4 text-primary" />
-                <h4 className="font-medium">Horizontal Deployment</h4>
+                <h4 className="font-semibold text-base">Horizontal Deployment</h4>
               </div>
               <Badge variant="outline" className="bg-primary/10 text-primary">
                 Copied to {practice.copiedToPlants?.length ?? 0} plant{(practice.copiedToPlants?.length === 1 ? "" : "s")}
@@ -336,35 +339,35 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
 
           {/* Description */}
           <div>
-            <h4 className="font-medium mb-2">Overview</h4>
-            <p className="text-muted-foreground">{practice.description}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">Overview</h4>
+            <p className="text-muted-foreground leading-relaxed">{practice.description}</p>
           </div>
 
           {/* Area Implemented In */}
           {practice.areaImplemented && (
             <div>
-              <h4 className="font-medium mb-2">Area Implemented In</h4>
-              <p className="text-muted-foreground">{practice.areaImplemented}</p>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">Area Implemented In</h4>
+              <p className="text-muted-foreground leading-relaxed">{practice.areaImplemented}</p>
             </div>
           )}
 
           {/* Problem Statement */}
           <div>
-            <h4 className="font-medium mb-2">Problem Statement</h4>
-            <p className="text-muted-foreground">{practice.problemStatement}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">Problem Statement</h4>
+            <p className="text-muted-foreground leading-relaxed">{practice.problemStatement}</p>
           </div>
 
           {/* Solution */}
           <div>
-            <h4 className="font-medium mb-2">Solution</h4>
-            <p className="text-muted-foreground">{practice.solution}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">Solution</h4>
+            <p className="text-muted-foreground leading-relaxed">{practice.solution}</p>
           </div>
 
           {/* Before/After Images */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-dashed">
               <CardContent className="p-4">
-                <p className="font-medium mb-3 text-center">Before Implementation</p>
+                <p className="font-semibold text-base mb-3 text-center">Before Implementation</p>
                 {imagesLoading ? (
                   <div className="bg-muted/50 rounded-lg p-8 mb-3 text-center">
                     <Loader2 className="h-12 w-12 mx-auto text-muted-foreground animate-spin" />
@@ -414,7 +417,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             
             <Card className="border-dashed">
               <CardContent className="p-4">
-                <p className="font-medium mb-3 text-center">After Implementation</p>
+                <p className="font-semibold text-base mb-3 text-center">After Implementation</p>
                 {imagesLoading ? (
                   <div className="bg-success/10 rounded-lg p-8 mb-3 text-center">
                     <Loader2 className="h-12 w-12 mx-auto text-success animate-spin" />
@@ -465,7 +468,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
 
           {/* Supporting Documents */}
           <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
+            <h4 className="text-lg font-semibold mb-3 flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5" />
               Supporting Documents
             </h4>
@@ -512,7 +515,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                             {getFileIcon(doc.content_type)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate" title={doc.document_name}>
+                            <p className="font-semibold text-sm truncate text-foreground" title={doc.document_name}>
                               {doc.document_name}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
@@ -545,7 +548,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
           {/* Benefits & Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-medium mb-3">Key Benefits Achieved</h4>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">Key Benefits Achieved</h4>
               <ul className="space-y-2">
                 {(() => {
                   // Handle both array and string formats
@@ -572,7 +575,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
             </div>
             
             <div>
-              <h4 className="font-medium mb-3">Measurable Impact</h4>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">Measurable Impact</h4>
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <p className="text-sm">{practice.metrics}</p>
               </div>
@@ -582,15 +585,15 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
           {/* Investment in the Best Practice */}
           {practice.investment && (
             <div>
-              <h4 className="font-medium mb-2">Investment in the Best Practice</h4>
-              <p className="text-muted-foreground">{practice.investment}</p>
+              <h4 className="text-lg font-semibold mb-3 text-foreground">Investment in the Best Practice</h4>
+              <p className="text-muted-foreground leading-relaxed">{practice.investment}</p>
             </div>
           )}
 
           {/* Implementation Details */}
           <div>
-            <h4 className="font-medium mb-2">Implementation Timeline & Resources</h4>
-            <p className="text-muted-foreground">{practice.implementation || "Not specified"}</p>
+            <h4 className="text-lg font-semibold mb-3 text-foreground">Implementation Timeline & Resources</h4>
+            <p className="text-muted-foreground leading-relaxed">{practice.implementation || "Not specified"}</p>
           </div>
 
 
@@ -631,7 +634,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
               return (
                 <div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium flex items-center space-x-2">
+                    <h4 className="font-semibold text-base flex items-center space-x-2 text-foreground">
                       <MessageCircle className="h-5 w-5 text-primary" />
                       <span>Ask a Question</span>
                     </h4>
@@ -702,7 +705,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <p className="font-medium text-sm">{q.asked_by_name}</p>
+                        <p className="font-semibold text-sm text-foreground">{q.asked_by_name}</p>
                         <span className="text-xs text-muted-foreground">
                           {formatDate(q.created_at)}
                         </span>
@@ -715,7 +718,7 @@ const BestPracticeDetail = ({ userRole, practice: propPractice, isBenchmarked, o
                     <div className="ml-11 p-4 bg-accent/30 rounded-lg">
                       <div className="flex items-center space-x-2 mb-2">
                         <Shield className="h-4 w-4 text-primary" />
-                        <p className="font-medium text-sm text-primary">
+                        <p className="font-semibold text-sm text-primary">
                           {q.answered_by_name || "Author"} Response
                         </p>
                         {q.answered_at && (

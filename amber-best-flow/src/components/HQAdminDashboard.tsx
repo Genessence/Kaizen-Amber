@@ -53,6 +53,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from "recharts"
 import { usePlantMonthlyTrend } from "@/hooks/useAnalytics";
 import { usePlants } from "@/hooks/usePlants";
 import { useUnifiedDashboard } from "@/hooks/useUnifiedDashboard";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface HQAdminDashboardProps {
   thisMonthTotal?: number;
@@ -1027,8 +1028,8 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
 
             {/* Drilldown: Monthly Savings & Stars */}
             <AlertDialog open={starDrillOpen} onOpenChange={setStarDrillOpen}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
+              <AlertDialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-6">
+                <AlertDialogHeader className="pb-3">
                   <AlertDialogTitle>
                     {starDrillPlant ? `${starDrillPlant} - Monthly Savings & Stars` : "Monthly Savings & Stars"}
                   </AlertDialogTitle>
@@ -1041,12 +1042,13 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                     <br />• 1⭐: YTD &gt; 50L and Monthly &gt; 4L
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                {monthlyTrendLoading ? (
-                  <TableSkeleton rows={5} />
-                ) : monthlyTrendData && monthlyTrendData.length > 0 ? (
-                  <div className="space-y-4">
-                    {/* 12-Month Trend Chart */}
-                    <div className="h-[300px] w-full">
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {monthlyTrendLoading ? (
+                    <TableSkeleton rows={5} />
+                  ) : monthlyTrendData && monthlyTrendData.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* 12-Month Trend Chart */}
+                      <div className="h-[350px] w-full">
                       <ChartContainer
                         config={{
                           savings: {
@@ -1187,13 +1189,14 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm">No monthly trend data available</p>
-                  </div>
-                )}
-                <AlertDialogFooter>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="text-sm">No monthly trend data available</p>
+                    </div>
+                  )}
+                </div>
+                <AlertDialogFooter className="pt-3 mt-3 border-t">
                   <AlertDialogCancel>Close</AlertDialogCancel>
                   <AlertDialogAction onClick={() => {
                     setStarDrillOpen(false);
@@ -1418,7 +1421,18 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                                         }>
                                           {item.type}: {item.points}
                                         </Badge>
-                                        <span className="text-xs">{bpTitle}</span>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="text-xs max-w-[200px] truncate block">
+                                                {bpTitle}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p className="max-w-xs">{bpTitle}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
                                       </div>
                                     );
                                   })}
@@ -1479,7 +1493,20 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                           <tbody className="divide-y">
                             {(lbDrillData?.copied ?? []).map((row, idx) => (
                               <tr key={idx}>
-                                <td className="py-1">{row.title}</td>
+                                <td className="py-1 max-w-[300px]">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="truncate">
+                                          {row.title}
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="max-w-xs">{row.title}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </td>
                                 <td className="py-1">{row.points}</td>
                                 <td className="py-1">{row.date}</td>
                               </tr>
@@ -1507,7 +1534,20 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                           <tbody className="divide-y">
                             {(lbDrillData?.originated ?? lbDrillData?.perBP ?? []).map((row: any) => (
                               <tr key={row.title}>
-                                <td className="py-1">{row.title}</td>
+                                <td className="py-1 max-w-[300px]">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="truncate">
+                                          {row.title}
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="max-w-xs">{row.title}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </td>
                                 <td className="py-1">{row.copies}</td>
                                 <td className="py-1">{row.points}</td>
                               </tr>
@@ -1580,8 +1620,17 @@ const HQAdminDashboard = ({ thisMonthTotal, ytdTotal, copySpread, leaderboard }:
                         navigate(`/practices/${practice.id}`);
                       }}
                     >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{practice.title}</h4>
+                      <div className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <h4 className="font-medium truncate">{practice.title}</h4>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md">{practice.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="outline" className="text-xs">
                             {practice.category_name || practice.category || "Other"}

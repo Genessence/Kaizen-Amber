@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "prebuild": "NODE_ENV= npm install || npm install",
     "build": "tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",

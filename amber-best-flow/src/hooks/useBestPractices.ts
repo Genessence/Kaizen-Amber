@@ -60,6 +60,14 @@ export const useRecentPractices = (limit: number = 10) => {
   });
 };
 
+export const useDraftPractices = () => {
+  return useQuery<BestPracticeListItem[]>({
+    queryKey: ['draft-practices'],
+    queryFn: () => apiService.getDraftPractices(),
+    staleTime: 2 * 60 * 1000, // 2 minutes - fresher data for drafts
+  });
+};
+
 export const useCreateBestPractice = () => {
   const queryClient = useQueryClient();
 

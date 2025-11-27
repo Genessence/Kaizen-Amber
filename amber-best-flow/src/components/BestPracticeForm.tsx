@@ -29,11 +29,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRef, useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCategories } from "@/hooks/useCategories";
-import { useCreateBestPractice } from "@/hooks/useBestPractices";
+import { useCreateBestPractice, useBestPractice, useUpdateBestPractice } from "@/hooks/useBestPractices";
 import { useCopyImplement } from "@/hooks/useCopyImplement";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiService } from "@/services/api";
@@ -75,6 +75,9 @@ const BestPracticeForm = ({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get('draftId');
+  
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState(""); // Now stores category ID
   const [problemStatement, setProblemStatement] = useState("");
@@ -104,7 +107,11 @@ const BestPracticeForm = ({
   const { data: categoriesData, isLoading: categoriesLoading } =
     useCategories();
   const createMutation = useCreateBestPractice();
+  const updateMutation = useUpdateBestPractice();
   const copyMutation = useCopyImplement();
+  
+  // Fetch draft data if draftId is provided
+  const { data: draftData, isLoading: draftLoading } = useBestPractice(draftId || undefined);
 
   const { toast: oldToast } = useToast();
 
@@ -121,7 +128,58 @@ const BestPracticeForm = ({
     return Settings; // Default icon
   };
 
+  // Load draft data if draftId is provided
   useEffect(() => {
+    // Only proceed if we have a draftId and draftData is loaded (not loading)
+    if (!draftId || draftLoading) {
+      return;
+    }
+
+    if (draftData) {
+      console.log("Loading draft data:", draftData);
+      setTitle(draftData.title || "");
+      setCategory(draftData.category_id || "");
+      setProblemStatement(draftData.problem_statement || "");
+      setSolution(draftData.solution || "");
+      setBenefitsText(draftData.benefits?.join('\n') || "");
+      setMetricsText(draftData.metrics || "");
+      setImplementationText(draftData.implementation || "");
+      setInvestmentText(draftData.investment || "");
+      setImplementationArea(draftData.area_implemented || "");
+      setSavingsAmount(draftData.savings_amount?.toString() || "");
+      setSavingsCurrency(draftData.savings_currency || "lakhs");
+      
+      // Clear any existing File objects (we'll use URLs from backend)
+      setBeforeImage(null);
+      setAfterImage(null);
+      setSupportingDocs([]);
+      
+      // Load existing images if any
+      if (draftData.before_image_url) {
+        setBeforePreview(draftData.before_image_url);
+      } else {
+        setBeforePreview(null);
+      }
+      if (draftData.after_image_url) {
+        setAfterPreview(draftData.after_image_url);
+      } else {
+        setAfterPreview(null);
+      }
+      
+      // Note: Supporting documents are shown separately via API call in the form
+      // We don't load them into the File[] state since they're already uploaded
+      // The form will display existing documents from draftData.documents
+      
+      toast.info("Draft loaded successfully");
+    }
+  }, [draftData, draftId, draftLoading]);
+
+  useEffect(() => {
+    // Skip this effect if we're loading a draft (draft loading is handled by separate useEffect)
+    if (draftId) {
+      return;
+    }
+
     if (preFillData) {
       // Only pre-fill these 4 fields: title, category, problemStatement, solution
       setTitle(preFillData.title || "");
@@ -164,7 +222,7 @@ const BestPracticeForm = ({
       setSavingsCurrency("lakhs");
       setSavingsError("");
     }
-  }, [preFillData, categoriesData]);
+  }, [preFillData, categoriesData, draftId]);
 
   const validate = () => {
     if (!title.trim()) return "Please enter Practice Title.";
@@ -242,11 +300,20 @@ const BestPracticeForm = ({
         // Don't send submitted_date - backend sets it to null for drafts
       };
 
-      // Create the practice as draft
-      const result = await createMutation.mutateAsync(practiceData);
-
-      if (!result.id) {
-        throw new Error("Draft creation failed - no ID returned");
+      let result;
+      if (draftId) {
+        // Update existing draft
+        await updateMutation.mutateAsync({ 
+          practiceId: draftId, 
+          data: practiceData 
+        });
+        result = { id: draftId };
+      } else {
+        // Create new draft
+        result = await createMutation.mutateAsync(practiceData);
+        if (!result.id) {
+          throw new Error("Draft creation failed - no ID returned");
+        }
       }
 
       // Upload images if they exist (for drafts too)
@@ -298,7 +365,7 @@ const BestPracticeForm = ({
         }
       }
 
-      toast.success("Draft saved successfully!");
+      toast.success(draftId ? "Draft updated successfully!" : "Draft saved successfully!");
 
       // Invalidate and refetch queries to ensure dashboard shows updated data immediately
       await queryClient.invalidateQueries({ queryKey: ["unified-dashboard"] });
@@ -307,6 +374,7 @@ const BestPracticeForm = ({
       await queryClient.invalidateQueries({ queryKey: ["best-practices"] });
       await queryClient.invalidateQueries({ queryKey: ["my-practices"] });
       await queryClient.invalidateQueries({ queryKey: ["recent-practices"] });
+      await queryClient.invalidateQueries({ queryKey: ["draft-practices"] });
 
       // Force refetch unified dashboard immediately so data is fresh when navigating
       await queryClient.refetchQueries({ queryKey: ["unified-dashboard"] });
@@ -375,6 +443,32 @@ const BestPracticeForm = ({
           id: copyResponse.data.copied_practice.id,
           title: copyResponse.data.copied_practice.title,
         };
+      } else if (draftId) {
+        // Update existing draft to submitted status
+        const practiceData = {
+          title,
+          description: solution.substring(0, 200), // First 200 chars as description
+          category_id: category, // Now using category ID directly
+          plant_id: user?.plant_id, // Include plant_id from user context
+          problem_statement: problemStatement,
+          solution,
+          benefits: benefitsArray.length > 0 ? benefitsArray : undefined,
+          metrics: metricsText || undefined,
+          implementation: implementationText || undefined,
+          investment: investmentText || undefined,
+          area_implemented: implementationArea || undefined,
+          savings_amount: parseInt(savingsAmount, 10),
+          savings_currency: savingsCurrency,
+          savings_period: "monthly" as const,
+          status: "submitted" as const,
+          // Don't send submitted_date - backend sets it automatically when status is 'submitted'
+        };
+
+        await updateMutation.mutateAsync({ 
+          practiceId: draftId, 
+          data: practiceData 
+        });
+        result = { id: draftId };
       } else {
         // Create new practice
         const practiceData = {
@@ -579,6 +673,8 @@ const BestPracticeForm = ({
       await queryClient.invalidateQueries({ queryKey: ["best-practices"] });
       await queryClient.invalidateQueries({ queryKey: ["my-practices"] });
       await queryClient.invalidateQueries({ queryKey: ["recent-practices"] });
+      // Invalidate draft-practices so submitted draft disappears from drafts dialog
+      await queryClient.invalidateQueries({ queryKey: ["draft-practices"] });
 
       // Force refetch unified dashboard immediately so data is fresh when navigating
       await queryClient.refetchQueries({ queryKey: ["unified-dashboard"] });
@@ -1202,43 +1298,73 @@ const BestPracticeForm = ({
                     Browse Files
                   </Button>
                 </div>
-                {supportingDocs.length > 0 && (
+                {(supportingDocs.length > 0 || (draftData?.documents && draftData.documents.length > 0)) && (
                   <div className="mt-4 space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground mb-2">
-                      Selected Files ({supportingDocs.length}):
-                    </div>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {supportingDocs.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
-                        >
-                          <span className="flex-1 truncate mr-2">
-                            {file.name}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {(file.size / 1024).toFixed(1)} KB
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 ml-2"
-                            onClick={() => {
-                              const newFiles = supportingDocs.filter(
-                                (_, i) => i !== index
-                              );
-                              setSupportingDocs(newFiles);
-                              // Reset input to allow selecting the same file again
-                              if (docsInputRef.current) {
-                                docsInputRef.current.value = "";
-                              }
-                            }}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                    {draftData?.documents && draftData.documents.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          Existing Documents ({draftData.documents.length}):
                         </div>
-                      ))}
-                    </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {draftData.documents.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-xs"
+                            >
+                              <FileText className="h-4 w-4 text-blue-600 mr-2 shrink-0" />
+                              <span className="flex-1 truncate mr-2 font-medium text-blue-900">
+                                {doc.document_name}
+                              </span>
+                              <span className="text-muted-foreground text-[10px] mr-2">
+                                {(doc.file_size / 1024).toFixed(1)} KB
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                Uploaded
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {supportingDocs.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          New Files to Upload ({supportingDocs.length}):
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {supportingDocs.map((file, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
+                            >
+                              <span className="flex-1 truncate mr-2">
+                                {file.name}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {(file.size / 1024).toFixed(1)} KB
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 ml-2"
+                                onClick={() => {
+                                  const newFiles = supportingDocs.filter(
+                                    (_, i) => i !== index
+                                  );
+                                  setSupportingDocs(newFiles);
+                                  // Reset input to allow selecting the same file again
+                                  if (docsInputRef.current) {
+                                    docsInputRef.current.value = "";
+                                  }
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -1289,36 +1415,36 @@ const BestPracticeForm = ({
                 variant="outline"
                 onClick={handleSaveDraft}
                 className="transition-smooth hover:bg-accent"
-                disabled={isSubmitting || createMutation.isPending}
+                disabled={isSubmitting || createMutation.isPending || updateMutation.isPending || draftLoading}
               >
-                {isSubmitting || createMutation.isPending ? (
+                {isSubmitting || createMutation.isPending || updateMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
+                    {draftId ? 'Updating...' : 'Saving...'}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Draft
+                    {draftId ? 'Update Draft' : 'Save Draft'}
                   </>
                 )}
               </Button>
               <Button
                 className="bg-gradient-primary hover:bg-gradient-primary/90 shadow-medium hover:shadow-strong transition-smooth"
                 onClick={handleSubmit}
-                disabled={isSubmitting || createMutation.isPending}
+                disabled={isSubmitting || createMutation.isPending || updateMutation.isPending || draftLoading}
                 title={
                   supportingDocs.length > 0
                     ? "Documents must be uploaded successfully to submit"
                     : ""
                 }
               >
-                {isSubmitting || createMutation.isPending ? (
+                {isSubmitting || createMutation.isPending || updateMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     {supportingDocs.length > 0
                       ? "Uploading & Submitting..."
-                      : "Submitting..."}
+                      : draftId ? "Updating & Submitting..." : "Submitting..."}
                   </>
                 ) : (
                   <>

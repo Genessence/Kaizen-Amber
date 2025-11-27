@@ -52,7 +52,9 @@ export const listBestPracticesSchema = z.object({
   search: z.string().optional(),
   category_id: z.string().uuid().optional(),
   plant_id: z.string().uuid().optional(),
-  status: z.enum(['draft', 'submitted', 'approved', 'revision_required']).optional(),
+  // Accept string for status to allow comma-separated values (e.g., "submitted,approved")
+  // Controller will handle splitting and validation
+  status: z.string().optional(),
   is_benchmarked: z.string().transform((val) => val === 'true').optional(),
 });
 

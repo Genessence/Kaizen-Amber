@@ -124,6 +124,9 @@ export interface BestPractice {
   area_implemented?: string;
   status: PracticeStatus;
   submitted_date?: string;
+  before_image_url?: string | null;
+  after_image_url?: string | null;
+  documents?: PracticeDocument[];
   is_deleted: boolean;
   created_at: string;
   updated_at: string;

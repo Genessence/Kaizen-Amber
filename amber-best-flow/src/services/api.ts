@@ -326,10 +326,14 @@ class APIService {
         plant_id: item.plant?.id || item.plant_id,
         plant_name: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
         plant: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
+        submitted_by_name: item.submitted_by?.full_name || (typeof item.submitted_by === 'string' ? item.submitted_by : '') || '',
         status: item.status,
+        savings_amount: item.savings_amount || 0,
+        savings_currency: item.savings_currency || 'rupees',
         is_benchmarked: item.is_benchmarked || false,
         question_count: item.question_count || 0,
         submitted_date: item.submitted_date,
+        has_images: false, // This would need to be included in backend response if needed
         created_at: item.created_at,
       })),
       pagination: {

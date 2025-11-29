@@ -39,6 +39,7 @@ jobs:
       - name: Install frontend & build
         working-directory: ./amber-best-flow
         run: |
+          rm -rf node_modules package-lock.json
           npm install
           npm run build
 
@@ -63,8 +64,11 @@ jobs:
           npm --prefix node-backend ci
           npm --prefix node-backend run build
 
-          npm --prefix amber-best-flow install
-          npm --prefix amber-best-flow run build
+          cd amber-best-flow
+          rm -rf node_modules package-lock.json
+          npm install
+          npm run build
+          cd ..
 
           # Verify images are in dist folder
           echo "Checking if images are in dist folder..."

@@ -39,7 +39,7 @@ jobs:
       - name: Install frontend & build
         working-directory: ./amber-best-flow
         run: |
-          npm ci
+          npm install
           npm run build
 
   deploy:
@@ -63,7 +63,7 @@ jobs:
           npm --prefix node-backend ci
           npm --prefix node-backend run build
 
-          npm --prefix amber-best-flow ci
+          npm --prefix amber-best-flow install
           npm --prefix amber-best-flow run build
 
           # Verify images are in dist folder

@@ -960,6 +960,7 @@ class APIService {
           practice_title: bp.title || bp.practice_title || '',
           practice_category: bp.category || bp.practice_category || '',
           plant_name: bp.plant || bp.plant_name || '',
+          plant_id: bp.plant_id || '',
           benchmarked_date: bp.date ? formatRelativeTime(bp.date) : bp.benchmarked_date || '',
           benchmarked_date_iso: bp.date || bp.benchmarked_date_iso || '',
           savings_amount: bp.savings_amount || null,

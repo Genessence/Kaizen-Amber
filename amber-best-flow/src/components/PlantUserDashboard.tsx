@@ -1569,16 +1569,13 @@ const PlantUserDashboard = ({
             ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
               <div className="space-y-4">
                 {(() => {
-                  // Sort: Other plants' BPs first, then current user's plant BPs
+                  // Filter out practices from the same plant as the current user
+                  // (same logic as BenchmarkPage - only show practices from other plants)
                   const currentPlantId = user?.plant_id;
-                  const sortedBPs = [...benchmarkedPractices].sort((a, b) => {
-                    const aIsCurrentPlant = a.plant_id === currentPlantId;
-                    const bIsCurrentPlant = b.plant_id === currentPlantId;
-                    if (aIsCurrentPlant && !bIsCurrentPlant) return 1;
-                    if (!aIsCurrentPlant && bIsCurrentPlant) return -1;
-                    return 0;
+                  const filteredBPs = benchmarkedPractices.filter((bp: any) => {
+                    return bp.plant_id !== currentPlantId;
                   });
-                  return sortedBPs;
+                  return filteredBPs;
                 })()
                   .slice(0, 4)
                   .map((bp: any, index: number) => (

@@ -132,10 +132,8 @@ jobs:
             ls -t backups/ 2>/dev/null | tail -n +3 | xargs -I {} rm -rf backups/{} || true
             
             # Remove old deployments completely to avoid permission issues
-            rm -rf node-backend/node_modules
-            rm -rf amber-best-flow/node_modules
-            rm -rf node-backend/dist
-            rm -rf amber-best-flow/dist
+            sudo rm -rf node-backend/node_modules amber-best-flow/node_modules
+            sudo rm -rf node-backend/dist amber-best-flow/dist
             
             echo "📊 Disk space after cleanup:"
             df -h | grep "/$"

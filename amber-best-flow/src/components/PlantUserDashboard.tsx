@@ -78,7 +78,12 @@ import { useCategories } from "@/hooks/useCategories";
 import { apiService } from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -962,9 +967,7 @@ const PlantUserDashboard = ({
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="truncate">
-                                {practice.title}
-                              </div>
+                              <div className="truncate">{practice.title}</div>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-xs">{practice.title}</p>
@@ -1568,15 +1571,7 @@ const PlantUserDashboard = ({
               <ListSkeleton items={4} />
             ) : benchmarkedPractices && benchmarkedPractices.length > 0 ? (
               <div className="space-y-4">
-                {(() => {
-                  // Filter out practices from the same plant as the current user
-                  // (same logic as BenchmarkPage - only show practices from other plants)
-                  const currentPlantId = user?.plant_id;
-                  const filteredBPs = benchmarkedPractices.filter((bp: any) => {
-                    return bp.plant_id !== currentPlantId;
-                  });
-                  return filteredBPs;
-                })()
+                {benchmarkedPractices
                   .slice(0, 4)
                   .map((bp: any, index: number) => (
                     <div
@@ -1590,7 +1585,9 @@ const PlantUserDashboard = ({
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <h4 className="font-medium truncate">{bp.practice_title}</h4>
+                              <h4 className="font-medium truncate">
+                                {bp.practice_title}
+                              </h4>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="max-w-md">{bp.practice_title}</p>
@@ -1635,17 +1632,31 @@ const PlantUserDashboard = ({
                         >
                           View Details
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyImplement(bp);
-                          }}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90"
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copy & Implement
-                        </Button>
+                        {/* Only show Copy & Implement if BP is NOT from the current user's plant */}
+                        {(() => {
+                          // First try to compare by plant_id (if available)
+                          if (bp.plant_id && user?.plant_id) {
+                            return bp.plant_id !== user.plant_id;
+                          }
+                          // Fallback to comparing by plant_name if plant_id is not available
+                          if (bp.plant_name && user?.plant_name) {
+                            return bp.plant_name !== user.plant_name;
+                          }
+                          // If neither is available, don't show button (safer to hide)
+                          return false;
+                        })() && (
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyImplement(bp);
+                            }}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy & Implement
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1658,7 +1669,6 @@ const PlantUserDashboard = ({
           </CardContent>
         </Card>
       </div>
-
 
       {/* Benchmark BP Leaderboard */}
       <div className="lg:col-span-3">
@@ -1840,7 +1850,9 @@ const PlantUserDashboard = ({
                                                   </span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                  <p className="max-w-xs">{item.bp_title}</p>
+                                                  <p className="max-w-xs">
+                                                    {item.bp_title}
+                                                  </p>
                                                 </TooltipContent>
                                               </Tooltip>
                                             </TooltipProvider>
@@ -1939,9 +1951,7 @@ const PlantUserDashboard = ({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="truncate">
-                                    {row.title}
-                                  </div>
+                                  <div className="truncate">{row.title}</div>
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <p className="max-w-xs">{row.title}</p>
@@ -1987,9 +1997,7 @@ const PlantUserDashboard = ({
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="truncate">
-                                    {row.title}
-                                  </div>
+                                  <div className="truncate">{row.title}</div>
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <p className="max-w-xs">{row.title}</p>

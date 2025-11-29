@@ -3,11 +3,11 @@
  * Displays draft icon with dropdown showing saved draft practices
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileText, Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { FileText, Loader2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -15,16 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { useDraftPractices } from '@/hooks/useBestPractices';
-import { formatDistanceToNow } from 'date-fns';
+} from "@/components/ui/dialog";
+import { useDraftPractices } from "@/hooks/useBestPractices";
+import { formatDistanceToNow } from "date-fns";
 
 const DraftsDialog = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  
+
   const { data: drafts, isLoading, error, refetch } = useDraftPractices();
-  
+
   const draftCount = drafts?.length || 0;
 
   const handleContinueEditing = (draftId: string) => {
@@ -33,11 +33,11 @@ const DraftsDialog = () => {
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Recently';
+    if (!dateString) return "Recently";
     try {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true });
     } catch {
-      return 'Recently';
+      return "Recently";
     }
   };
 
@@ -56,7 +56,7 @@ const DraftsDialog = () => {
               variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]"
             >
-              {draftCount > 9 ? '9+' : draftCount}
+              {draftCount > 9 ? "9+" : draftCount}
             </Badge>
           )}
         </Button>
@@ -68,7 +68,7 @@ const DraftsDialog = () => {
             Continue editing your saved draft practices
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="flex-1 overflow-y-auto pr-2">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -113,9 +113,7 @@ const DraftsDialog = () => {
                           </Badge>
                         </span>
                         <span>•</span>
-                        <span>
-                          Saved {formatDate(draft.created_at)}
-                        </span>
+                        <span>Saved {formatDate(draft.created_at)}</span>
                       </div>
                       {draft.description && (
                         <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
@@ -142,7 +140,3 @@ const DraftsDialog = () => {
 };
 
 export default DraftsDialog;
-
-
-
-

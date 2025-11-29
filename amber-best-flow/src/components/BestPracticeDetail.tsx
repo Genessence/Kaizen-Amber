@@ -40,8 +40,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@/lib/utils";
-import { pdf } from "@react-pdf/renderer";
-import BestPracticePDF from "./BestPracticePDF";
+import { generateBestPracticePDF } from "./BestPracticePDF";
 import { toast } from "sonner";
 import {
   Tooltip,
@@ -352,25 +351,17 @@ const BestPracticeDetail = ({
         afterImageUrl: afterImage?.blob_url,
       };
 
-      // Generate PDF blob
-      const blob = await pdf(<BestPracticePDF practice={pdfData} />).toBlob();
-
-      // Create download link
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      // Format: Title of BP_Plant Name
+      // Format filename: Title of BP_Plant Name
       const sanitizedTitle = practice.title
         .replace(/[^a-z0-9\s]/gi, "_")
         .replace(/\s+/g, "_");
       const sanitizedPlant = (practice.plant || "Unknown_Plant")
         .replace(/[^a-z0-9\s]/gi, "_")
         .replace(/\s+/g, "_");
-      link.download = `${sanitizedTitle}_${sanitizedPlant}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const filename = `${sanitizedTitle}_${sanitizedPlant}.pdf`;
+
+      // Generate and download PDF using lightweight jsPDF
+      await generateBestPracticePDF(pdfData, filename);
     } catch (error) {
       console.error("Failed to generate PDF:", error);
       toast.error("Failed to generate PDF. Please try again.");

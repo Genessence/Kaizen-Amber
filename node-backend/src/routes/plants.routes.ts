@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { plantsController } from '../controllers/plants.controller';
 import { authenticate } from '../middleware/auth';
+import { cacheMiddleware } from '../middleware/cache';
 
 const router = Router();
 
-router.get('/', authenticate, plantsController.listPlants.bind(plantsController));
-router.get('/active', authenticate, plantsController.getActivePlants.bind(plantsController));
-router.get('/:id', authenticate, plantsController.getPlant.bind(plantsController));
+// Cache plants for 5 minutes (they rarely change)
+router.get('/', authenticate, cacheMiddleware(5 * 60 * 1000), plantsController.listPlants.bind(plantsController));
+router.get('/active', authenticate, cacheMiddleware(5 * 60 * 1000), plantsController.getActivePlants.bind(plantsController));
+router.get('/:id', authenticate, cacheMiddleware(5 * 60 * 1000), plantsController.getPlant.bind(plantsController));
 
 export default router;
 

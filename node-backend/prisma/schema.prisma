@@ -107,6 +107,9 @@ model BestPractice {
   @@index([plantId, submittedDate(sort: Desc)])
   @@index([categoryId])
   @@index([status])
+  @@index([isDeleted])
+  @@index([plantId, status, isDeleted])
+  @@index([categoryId, status, isDeleted])
   @@map("best_practices")
 }
 

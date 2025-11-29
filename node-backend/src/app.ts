@@ -30,7 +30,19 @@ const createApp = (): Express => {
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
   }));
-  app.use(compression());
+  
+  // Compression middleware - optimize for speed
+  app.use(compression({
+    level: 6, // Balance between speed and compression
+    threshold: 1024, // Only compress responses > 1KB
+    filter: (req, res) => {
+      // Don't compress images/video
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  }));
 
   // Body parsing
   app.use(express.json({ limit: '10mb' }));
@@ -50,8 +62,24 @@ const createApp = (): Express => {
     app.use(morgan('dev'));
   }
 
-  // Health check
+  // Performance optimization: Add Cache-Control headers for static responses
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Set default headers for all API responses
+    if (req.path.startsWith('/api/v1')) {
+      // Prevent caching of POST/PUT/PATCH/DELETE
+      if (req.method !== 'GET') {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      }
+      // Add security headers
+      res.set('X-Content-Type-Options', 'nosniff');
+      res.set('X-Frame-Options', 'DENY');
+    }
+    next();
+  });
+
+  // Health check - no caching
   app.get('/health', (_req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-cache');
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 

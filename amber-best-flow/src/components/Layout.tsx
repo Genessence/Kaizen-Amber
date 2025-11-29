@@ -4,6 +4,8 @@
  */
 
 import { Outlet, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Navigation from '@/components/Navigation';
@@ -11,10 +13,36 @@ import NotificationCenter from '@/components/NotificationCenter';
 import DraftsDialog from '@/components/DraftsDialog';
 import { Building2, Shield, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiService } from '@/services/api';
 
 const Layout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // OptiMax Optimization: Prefetch critical data on mount
+  useEffect(() => {
+    // Prefetch categories (used in forms)
+    queryClient.prefetchQuery({
+      queryKey: ['categories'],
+      queryFn: () => apiService.listCategories(),
+      staleTime: 5 * 60 * 1000,
+    });
+
+    // Prefetch plants (used in filters)
+    queryClient.prefetchQuery({
+      queryKey: ['plants'],
+      queryFn: () => apiService.listPlants(),
+      staleTime: 5 * 60 * 1000,
+    });
+
+    // Prefetch recent practices for faster dashboard load
+    queryClient.prefetchQuery({
+      queryKey: ['best-practices', { limit: 10, sort_by: 'created_at', sort_order: 'desc' }],
+      queryFn: () => apiService.listBestPractices({ limit: 10, sort_by: 'created_at', sort_order: 'desc' }),
+      staleTime: 2 * 60 * 1000,
+    });
+  }, [queryClient]);
 
   const handleLogout = async () => {
     try {

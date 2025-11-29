@@ -64,10 +64,10 @@ fi
 # Navigate to project directory
 cd $PROJECT_DIR || exit
 
-# Install backend dependencies
+# Install backend dependencies (including devDependencies for building)
 print_status "Installing backend dependencies..."
 cd $BACKEND_DIR
-npm install --production
+npm install
 
 # Build backend
 print_status "Building backend..."

@@ -20,7 +20,7 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast.error("Please enter email and password");
       return;
@@ -31,18 +31,18 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
     try {
       // Call API to login
       await login(email, password, rememberMe);
-      
-      // Get user data from auth context
-      const userData = await login(email, password, rememberMe);
-      
-      // Call onLogin with role to update UI
+
+      // Login successful - toast is handled by AuthContext
       toast.success("Login successful!");
-      
+
       // The AuthContext will have the user data
-      // We'll get the role from there in the parent component
+      // Navigation is handled by LoginPage useEffect
     } catch (error) {
       console.error("Login failed:", error);
-      const errorMessage = error instanceof Error ? error.message : "Login failed. Please check your credentials.";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Login failed. Please check your credentials.";
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -51,109 +51,134 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-
-      {/* Desktop-only small headline */}
-      <div className="hidden md:block mb-8">
-        <h3 className="text-3xl md:text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent leading-tight">Welcome to InnoSphere</h3>
-        <p className="text-sm md:text-base text-muted-foreground mt-2 leading-relaxed">A sphere of innovation, sharing, benchmarking, and cross-learning.</p>
-      </div>
-
-      {/* Email Input */}
-      <div className="space-y-2">
-        <Label htmlFor="email" className="text-sm font-medium text-foreground sr-only">
-          Email / Employee ID
-        </Label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email / Employee ID"
-            className="w-full h-11 pl-10 pr-4 bg-white/50 backdrop-blur-sm border-border/50 focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 outline-none"
-            aria-label="Email or Employee ID"
-            required
+      {/* Amber Logo and Header - Enhanced */}
+      <div className="mb-7 text-center">
+        <div className="flex justify-center mb-6 animate-fade-in">
+          <img
+            src="/images/amberlogo.png"
+            alt="Amber Logo"
+            className="h-16 w-auto object-contain login-logo drop-shadow-lg"
           />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-3xl md:text-[2.75rem] font-extrabold bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 bg-clip-text text-transparent leading-tight tracking-tight">
+            Welcome to InnoSphere
+          </h1>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-600 font-medium">
+            <span className="w-7 h-[2px] bg-gradient-to-r from-transparent to-blue-400"></span>
+            <p className="px-2">
+              Innovation • Sharing • Benchmarking • Cross-learning
+            </p>
+            <span className="w-7 h-[2px] bg-gradient-to-l from-transparent to-blue-400"></span>
+          </div>
         </div>
       </div>
 
-      {/* Password Input */}
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-sm font-medium text-foreground sr-only">
-          Password
-        </Label>
-        <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="w-full h-11 pl-10 pr-4 bg-white/50 backdrop-blur-sm border-border/50 focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-200 outline-none"
-            aria-label="Password"
-            required
-          />
+      {/* Input Fields Container */}
+      <div className="space-y-4">
+        {/* Email Input - Enhanced Glass Morphism */}
+        <div className="space-y-1.5">
+          <Label
+            htmlFor="email"
+            className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1"
+          >
+            Email / Employee ID
+          </Label>
+          <div className="relative group">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-sky-500/10 group-focus-within:from-blue-500/20 group-focus-within:to-sky-500/20 transition-all duration-300 z-10 pointer-events-none">
+              <User className="h-[1.1rem] w-[1.1rem] text-blue-600 group-focus-within:text-blue-700 transition-colors" />
+            </div>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email or employee ID"
+              className="w-full h-[3.25rem] pl-14 pr-4 rounded-xl text-gray-800 placeholder:text-gray-400 border-0 transition-all duration-300 outline-none focus:outline-none glass-input-light text-[0.9rem] font-medium shadow-sm hover:shadow-md focus:shadow-lg relative"
+              aria-label="Email or Employee ID"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Password Input - Enhanced Glass Morphism */}
+        <div className="space-y-1.5">
+          <Label
+            htmlFor="password"
+            className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1"
+          >
+            Password
+          </Label>
+          <div className="relative group">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-sky-500/10 group-focus-within:from-blue-500/20 group-focus-within:to-sky-500/20 transition-all duration-300 z-10 pointer-events-none">
+              <Lock className="h-[1.1rem] w-[1.1rem] text-blue-600 group-focus-within:text-blue-700 transition-colors" />
+            </div>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              className="w-full h-[3.25rem] pl-14 pr-4 rounded-xl text-gray-800 placeholder:text-gray-400 border-0 transition-all duration-300 outline-none focus:outline-none glass-input-light text-[0.9rem] font-medium shadow-sm hover:shadow-md focus:shadow-lg relative"
+              aria-label="Password"
+              required
+            />
+          </div>
         </div>
       </div>
 
-      {/* Remember Me & Forgot Password Row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      {/* Remember Me - Enhanced */}
+      <div className="flex items-center pt-1">
+        <div className="flex items-center space-x-2.5 px-1">
           <Checkbox
             id="remember"
             checked={rememberMe}
             onCheckedChange={(checked) => setRememberMe(checked === true)}
-            className="border-border/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+            className="h-[1.1rem] w-[1.1rem] rounded-md border-2 border-blue-300 data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-blue-500 data-[state=checked]:to-sky-500 data-[state=checked]:border-blue-500 data-[state=checked]:shadow-lg data-[state=checked]:shadow-blue-500/30 transition-all duration-200"
+            style={{
+              background: rememberMe ? undefined : "rgba(255, 255, 255, 0.7)",
+            }}
           />
           <Label
             htmlFor="remember"
-            className="text-sm text-muted-foreground cursor-pointer select-none"
+            className="text-[0.8rem] text-gray-700 cursor-pointer select-none font-medium hover:text-gray-900 transition-colors"
           >
-            Remember me
+            Keep me signed in
           </Label>
         </div>
-        <a
-          href="#"
-          className="text-sm text-primary hover:text-primary/80 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 rounded px-1"
-          onClick={(e) => {
-            e.preventDefault();
-            // Handle forgot password
-          }}
-        >
-          Forgot password?
-        </a>
       </div>
 
-      {/* Primary CTA Button */}
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="w-full h-11 bg-gradient-primary hover:bg-gradient-primary/90 text-base font-medium shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Signing in...
-          </>
-        ) : (
-          "Sign In to Portal"
-        )}
-      </Button>
-
-      {/* Secondary Link */}
-      <div className="text-center">
-        <a
-          href="#"
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 rounded px-2 py-1"
-          onClick={(e) => {
-            e.preventDefault();
-            // Handle secondary action
-          }}
+      {/* Primary CTA Button - Enhanced Gradient with Hover Animations */}
+      <div className="pt-2">
+        <Button
+          type="submit"
+          disabled={isLoading}
+          className="w-full h-[3.25rem] rounded-xl text-[0.95rem] font-bold text-white border-0 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300/50 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-xl hover:shadow-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 hover:from-blue-700 hover:via-blue-600 hover:to-sky-600 transform hover:scale-[1.02] active:scale-[0.98]"
         >
-          Need help? Contact IT Support
-        </a>
+          {isLoading ? (
+            <>
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Sign In to Portal
+              <svg
+                className="ml-2 h-[1.1rem] w-[1.1rem] inline-block"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+            </>
+          )}
+        </Button>
       </div>
     </form>
   );

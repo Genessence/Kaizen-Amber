@@ -2,8 +2,9 @@
  * Custom hooks for analytics data
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { toast } from 'sonner';
 import type {
   DashboardOverview,
   PlantPerformance,
@@ -106,6 +107,27 @@ export const useBenchmarkStats = (year?: number, month?: number) => {
     queryKey: ['analytics', 'benchmark-stats', year, month],
     queryFn: () => apiService.getBenchmarkStats(year, month),
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useRecalculateSavings = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (year?: number) => apiService.recalculateSavings(year),
+    onSuccess: () => {
+      // Invalidate all analytics queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['cost-savings'] });
+      queryClient.invalidateQueries({ queryKey: ['cost-analysis'] });
+      queryClient.invalidateQueries({ queryKey: ['plant-monthly'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      toast.success('Savings recalculated successfully!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to recalculate savings');
+    },
   });
 };
 

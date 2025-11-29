@@ -13,12 +13,14 @@ export const useCopyImplement = () => {
   return useMutation<CopyImplementResponse, Error, CopyImplementRequest>({
     mutationFn: (data) => apiService.copyAndImplement(data),
     onSuccess: (data) => {
-      // Invalidate related queries
+      // Invalidate related queries to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ['best-practices'] });
       queryClient.invalidateQueries({ queryKey: ['my-practices'] });
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
       queryClient.invalidateQueries({ queryKey: ['copy-spread'] });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
       
       const points = data.data.points_awarded;
       toast.success(

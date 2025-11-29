@@ -78,6 +78,12 @@ import { useCategories } from "@/hooks/useCategories";
 import { apiService } from "@/services/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PlantUserDashboardProps {
   monthlyCount?: number;
@@ -121,8 +127,11 @@ const PlantUserDashboard = ({
   >("lakhs");
 
   // PERFORMANCE OPTIMIZATION: Use unified dashboard endpoint (1 API call for ALL data)
-  const { data: unifiedData, isLoading: unifiedLoading, error: unifiedError } =
-    useUnifiedDashboard(monthlySavingsFormat);
+  const {
+    data: unifiedData,
+    isLoading: unifiedLoading,
+    error: unifiedError,
+  } = useUnifiedDashboard(monthlySavingsFormat);
 
   // Extract data from unified response
   const overview = unifiedData?.data?.overview;
@@ -190,7 +199,7 @@ const PlantUserDashboard = ({
   const [ytdDialogOpen, setYtdDialogOpen] = useState(false);
   const [monthlyProgressDialogOpen, setMonthlyProgressDialogOpen] =
     useState(false);
-  
+
   // YTD Dialog filters
   const [ytdCategoryFilter, setYtdCategoryFilter] = useState<string>("all");
   const [ytdBenchmarkFilter, setYtdBenchmarkFilter] = useState<string>("all"); // "all", "benchmarked", "not-benchmarked"
@@ -231,12 +240,12 @@ const PlantUserDashboard = ({
 
   // Get categories for filter
   const { data: categoriesData } = useCategories();
-  
+
   const ytdPractices = useMemo(() => {
     // Get current year start date
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
-    
+
     // Filter myPractices to only include practices from current year
     const practicesFromAPI = myPractices || [];
     let ytdPracticesList = practicesFromAPI
@@ -249,15 +258,16 @@ const PlantUserDashboard = ({
       .map((practice: any) => {
         const submittedDate = practice.submitted_date || practice.submittedDate;
         const practiceDate = new Date(submittedDate);
-        
+
         // Format date as YYYY-MM-DD
-        const formattedDate = practiceDate.toISOString().split('T')[0];
-        
+        const formattedDate = practiceDate.toISOString().split("T")[0];
+
         // Get category name (handle both object and string formats)
-        const categoryName = typeof practice.category === 'string' 
-          ? practice.category 
-          : practice.category?.name || practice.category_name || 'Unknown';
-        
+        const categoryName =
+          typeof practice.category === "string"
+            ? practice.category
+            : practice.category?.name || practice.category_name || "Unknown";
+
         return {
           id: practice.id,
           title: practice.title,
@@ -267,20 +277,25 @@ const PlantUserDashboard = ({
           benchmarked: practice.is_benchmarked || false,
         };
       });
-    
+
     // Apply filters
     if (ytdCategoryFilter !== "all") {
       ytdPracticesList = ytdPracticesList.filter(
-        (practice) => practice.category.toLowerCase() === ytdCategoryFilter.toLowerCase()
+        (practice) =>
+          practice.category.toLowerCase() === ytdCategoryFilter.toLowerCase()
       );
     }
-    
+
     if (ytdBenchmarkFilter === "benchmarked") {
-      ytdPracticesList = ytdPracticesList.filter((practice) => practice.benchmarked);
+      ytdPracticesList = ytdPracticesList.filter(
+        (practice) => practice.benchmarked
+      );
     } else if (ytdBenchmarkFilter === "not-benchmarked") {
-      ytdPracticesList = ytdPracticesList.filter((practice) => !practice.benchmarked);
+      ytdPracticesList = ytdPracticesList.filter(
+        (practice) => !practice.benchmarked
+      );
     }
-    
+
     if (ytdSearchTerm) {
       const searchLower = ytdSearchTerm.toLowerCase();
       ytdPracticesList = ytdPracticesList.filter(
@@ -289,7 +304,7 @@ const PlantUserDashboard = ({
           practice.category.toLowerCase().includes(searchLower)
       );
     }
-    
+
     // Apply sorting
     ytdPracticesList.sort((a, b) => {
       switch (ytdSortBy) {
@@ -302,9 +317,15 @@ const PlantUserDashboard = ({
           return new Date(b.date).getTime() - new Date(a.date).getTime(); // Descending (newest first)
       }
     });
-    
+
     return ytdPracticesList;
-  }, [myPractices, ytdCategoryFilter, ytdBenchmarkFilter, ytdSearchTerm, ytdSortBy]);
+  }, [
+    myPractices,
+    ytdCategoryFilter,
+    ytdBenchmarkFilter,
+    ytdSearchTerm,
+    ytdSortBy,
+  ]);
 
   const handleYtdCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -570,7 +591,9 @@ const PlantUserDashboard = ({
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">
-                  Greater Noida (Ecotech 1)
+                  {user?.plant_name ||
+                    user?.plant_short_name ||
+                    "Plant Dashboard"}
                 </h2>
                 <p className="text-primary-foreground/80">
                   Amber Best Practice & Benchmarking Portal
@@ -785,8 +808,8 @@ const PlantUserDashboard = ({
         </Card>
       </div>
 
-      <AlertDialog 
-        open={ytdDialogOpen} 
+      <AlertDialog
+        open={ytdDialogOpen}
         onOpenChange={(open) => {
           setYtdDialogOpen(open);
           // Reset filters when dialog closes
@@ -808,13 +831,15 @@ const PlantUserDashboard = ({
               status.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          
+
           {/* Filters Section */}
           <div className="space-y-3 pb-4 border-b">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Search Filter */}
               <div className="space-y-1.5">
-                <Label htmlFor="ytd-search" className="text-xs">Search</Label>
+                <Label htmlFor="ytd-search" className="text-xs">
+                  Search
+                </Label>
                 <Input
                   id="ytd-search"
                   placeholder="Search practices..."
@@ -823,11 +848,16 @@ const PlantUserDashboard = ({
                   className="h-8 text-xs"
                 />
               </div>
-              
+
               {/* Category Filter */}
               <div className="space-y-1.5">
-                <Label htmlFor="ytd-category" className="text-xs">Category</Label>
-                <Select value={ytdCategoryFilter} onValueChange={setYtdCategoryFilter}>
+                <Label htmlFor="ytd-category" className="text-xs">
+                  Category
+                </Label>
+                <Select
+                  value={ytdCategoryFilter}
+                  onValueChange={setYtdCategoryFilter}
+                >
                   <SelectTrigger id="ytd-category" className="h-8 text-xs">
                     <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
@@ -841,25 +871,34 @@ const PlantUserDashboard = ({
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Benchmark Status Filter */}
               <div className="space-y-1.5">
-                <Label htmlFor="ytd-benchmark" className="text-xs">Benchmark Status</Label>
-                <Select value={ytdBenchmarkFilter} onValueChange={setYtdBenchmarkFilter}>
+                <Label htmlFor="ytd-benchmark" className="text-xs">
+                  Benchmark Status
+                </Label>
+                <Select
+                  value={ytdBenchmarkFilter}
+                  onValueChange={setYtdBenchmarkFilter}
+                >
                   <SelectTrigger id="ytd-benchmark" className="h-8 text-xs">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="benchmarked">Benchmarked</SelectItem>
-                    <SelectItem value="not-benchmarked">Not Benchmarked</SelectItem>
+                    <SelectItem value="not-benchmarked">
+                      Not Benchmarked
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Sort Filter */}
               <div className="space-y-1.5">
-                <Label htmlFor="ytd-sort" className="text-xs">Sort By</Label>
+                <Label htmlFor="ytd-sort" className="text-xs">
+                  Sort By
+                </Label>
                 <Select value={ytdSortBy} onValueChange={setYtdSortBy}>
                   <SelectTrigger id="ytd-sort" className="h-8 text-xs">
                     <SelectValue />
@@ -872,9 +911,12 @@ const PlantUserDashboard = ({
                 </Select>
               </div>
             </div>
-            
+
             {/* Reset Filters Button */}
-            {(ytdCategoryFilter !== "all" || ytdBenchmarkFilter !== "all" || ytdSearchTerm || ytdSortBy !== "date") && (
+            {(ytdCategoryFilter !== "all" ||
+              ytdBenchmarkFilter !== "all" ||
+              ytdSearchTerm ||
+              ytdSortBy !== "date") && (
               <div className="flex justify-end">
                 <Button
                   variant="outline"
@@ -892,7 +934,7 @@ const PlantUserDashboard = ({
               </div>
             )}
           </div>
-          
+
           <div className="overflow-x-auto flex-1 min-h-0 -mx-2 px-2">
             <table className="w-full text-sm">
               <thead>
@@ -921,8 +963,17 @@ const PlantUserDashboard = ({
                         }
                       }}
                     >
-                      <td className="py-2 px-3 font-medium text-xs">
-                        {practice.title}
+                      <td className="py-2 px-3 font-medium text-xs max-w-[300px]">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="truncate">{practice.title}</div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">{practice.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </td>
                       <td className="py-2 px-3 text-xs">{practice.category}</td>
                       <td className="py-2 px-3 text-xs">{practice.date}</td>
@@ -951,7 +1002,9 @@ const PlantUserDashboard = ({
                       colSpan={5}
                       className="py-8 text-center text-muted-foreground text-sm"
                     >
-                      {ytdCategoryFilter !== "all" || ytdBenchmarkFilter !== "all" || ytdSearchTerm
+                      {ytdCategoryFilter !== "all" ||
+                      ytdBenchmarkFilter !== "all" ||
+                      ytdSearchTerm
                         ? "No practices match your filters"
                         : "No practices submitted this year yet"}
                     </td>
@@ -962,7 +1015,8 @@ const PlantUserDashboard = ({
           </div>
           <AlertDialogFooter className="pt-3 mt-2 border-t">
             <div className="text-xs text-muted-foreground mr-auto">
-              Showing {ytdPractices.length} practice{ytdPractices.length !== 1 ? 's' : ''}
+              Showing {ytdPractices.length} practice
+              {ytdPractices.length !== 1 ? "s" : ""}
             </div>
             <AlertDialogCancel className="text-sm">Close</AlertDialogCancel>
           </AlertDialogFooter>
@@ -1038,10 +1092,19 @@ const PlantUserDashboard = ({
                           navigate(`/practices/${practice.id}`);
                         }}
                       >
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">
-                            {practice.title}
-                          </p>
+                        <div className="flex-1 min-w-0">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="font-medium text-sm truncate">
+                                  {practice.title}
+                                </p>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">{practice.title}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-xs text-muted-foreground">
                               {practice.category}
@@ -1250,12 +1313,34 @@ const PlantUserDashboard = ({
                         const savingsValue = parseFloat(numStr) || 0;
 
                         // Convert month format from "YYYY-MM" to "MMM"
-                        const [year, month] = trend.month.split("-");
-                        const date = new Date(
-                          parseInt(year),
-                          parseInt(month) - 1,
-                          1
-                        );
+                        // Handle both "YYYY-MM" and legacy "MMM YYYY" formats
+                        let date: Date;
+                        if (trend.month.includes("-")) {
+                          // New format: "YYYY-MM"
+                          const [year, month] = trend.month.split("-");
+                          const yearNum = parseInt(year);
+                          const monthNum = parseInt(month);
+                          if (
+                            isNaN(yearNum) ||
+                            isNaN(monthNum) ||
+                            monthNum < 1 ||
+                            monthNum > 12
+                          ) {
+                            console.warn(
+                              `Invalid month format: ${trend.month}`
+                            );
+                            date = new Date(); // Fallback to current date
+                          } else {
+                            date = new Date(yearNum, monthNum - 1, 1);
+                          }
+                        } else {
+                          // Legacy format: "MMM YYYY" (e.g., "Jan 2025")
+                          date = new Date(trend.month);
+                          if (isNaN(date.getTime())) {
+                            console.warn(`Invalid date format: ${trend.month}`);
+                            date = new Date(); // Fallback to current date
+                          }
+                        }
                         const monthLabel = date.toLocaleString("default", {
                           month: "short",
                         });
@@ -1496,8 +1581,19 @@ const PlantUserDashboard = ({
                         navigate(`/practices/${bp.practice_id}`);
                       }}
                     >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{bp.practice_title}</h4>
+                      <div className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <h4 className="font-medium truncate">
+                                {bp.practice_title}
+                              </h4>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md">{bp.practice_title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="outline" className="text-xs">
                             {bp.practice_category}
@@ -1536,17 +1632,31 @@ const PlantUserDashboard = ({
                         >
                           View Details
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyImplement(bp);
-                          }}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90"
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copy & Implement
-                        </Button>
+                        {/* Only show Copy & Implement if BP is NOT from the current user's plant */}
+                        {(() => {
+                          // First try to compare by plant_id (if available)
+                          if (bp.plant_id && user?.plant_id) {
+                            return bp.plant_id !== user.plant_id;
+                          }
+                          // Fallback to comparing by plant_name if plant_id is not available
+                          if (bp.plant_name && user?.plant_name) {
+                            return bp.plant_name !== user.plant_name;
+                          }
+                          // If neither is available, don't show button (safer to hide)
+                          return false;
+                        })() && (
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyImplement(bp);
+                            }}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy & Implement
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1554,90 +1664,6 @@ const PlantUserDashboard = ({
             ) : (
               <div className="text-center text-muted-foreground py-4">
                 No benchmarked practices available.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Submissions */}
-      <div className="lg:col-span-3">
-        <Card className="shadow-soft hover:shadow-medium transition-smooth border border-border/50">
-          <CardHeader>
-            <CardTitle>Latest Best Practices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {unifiedLoading ? (
-              <ListSkeleton items={4} />
-            ) : unifiedError ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2 opacity-50" />
-                <p className="text-sm">Failed to load recent practices</p>
-                <p className="text-xs text-muted-foreground mt-1">Please try again later</p>
-              </div>
-            ) : recentPractices && recentPractices.length > 0 ? (
-              <div className="space-y-4">
-                {recentPractices
-                  .slice(0, 4)
-                  .map((practice: any, index: number) => {
-                    // Calculate time ago from submitted_date_iso (preferred) or submitted_date
-                    const submittedDate = practice.submitted_date_iso 
-                      ? new Date(practice.submitted_date_iso) 
-                      : (practice.submitted_date ? new Date(practice.submitted_date) : null);
-                    
-                    const timeAgo = submittedDate
-                      ? (() => {
-                          const diffMs = Date.now() - submittedDate.getTime();
-                          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                          const diffDays = Math.floor(diffHours / 24);
-                          const diffWeeks = Math.floor(diffDays / 7);
-                          const diffMonths = Math.floor(diffDays / 30);
-                          
-                          if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
-                          if (diffWeeks > 0) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
-                          if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-                          if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-                          return 'Just now';
-                        })()
-                      : practice.submitted_date || 'Recently';
-                    
-                    return (
-                      <div
-                        key={practice.id || index}
-                        className="flex items-center justify-between p-4 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth hover-lift"
-                        onClick={() => {
-                          navigate(`/practices/${practice.id}`);
-                        }}
-                      >
-                        <div className="flex-1">
-                          <h4 className="font-medium">{practice.title}</h4>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {practice.category_name || "Other"}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {practice.plant_name || "Unknown Plant"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">• {timeAgo}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {practice.question_count > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="bg-primary/10 text-primary text-xs"
-                            >
-                              {practice.question_count} Q&A
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">No recent practices available</p>
               </div>
             )}
           </CardContent>
@@ -1816,9 +1842,20 @@ const PlantUserDashboard = ({
                                             >
                                               {item.type}: {item.points}
                                             </Badge>
-                                            <span className="text-xs">
-                                              {item.bp_title}
-                                            </span>
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="text-xs max-w-[200px] truncate block">
+                                                    {item.bp_title}
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="max-w-xs">
+                                                    {item.bp_title}
+                                                  </p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
                                           </div>
                                         ))}
                                       {entry.breakdown.length > 2 && (
@@ -1910,7 +1947,18 @@ const PlantUserDashboard = ({
                     <tbody className="divide-y">
                       {(lbDrillData?.copied ?? []).map((row, idx) => (
                         <tr key={idx}>
-                          <td className="py-1">{row.title}</td>
+                          <td className="py-1 max-w-[300px]">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="truncate">{row.title}</div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{row.title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
                           <td className="py-1">{row.points}</td>
                           <td className="py-1">{formatDate(row.date)}</td>
                         </tr>
@@ -1945,7 +1993,18 @@ const PlantUserDashboard = ({
                     <tbody className="divide-y">
                       {(lbDrillData?.originated ?? []).map((row) => (
                         <tr key={row.title}>
-                          <td className="py-1">{row.title}</td>
+                          <td className="py-1 max-w-[300px]">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="truncate">{row.title}</div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">{row.title}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
                           <td className="py-1">{row.copies}</td>
                           <td className="py-1">{row.points}</td>
                         </tr>

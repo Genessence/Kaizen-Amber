@@ -1,4 +1,4 @@
-import express, { Express } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
@@ -22,9 +22,14 @@ import notificationsRoutes from './routes/notifications.routes';
 const createApp = (): Express => {
   const app = express();
 
-  // Security middleware
-  app.use(helmet());
+  // CORS must be before other middleware
   app.use(corsMiddleware);
+  
+  // Security middleware
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(compression());
 
   // Body parsing
@@ -32,7 +37,7 @@ const createApp = (): Express => {
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Logging - Always log requests for debugging
-  app.use((req, res, next) => {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`, {
       query: req.query,
       body: req.method !== 'GET' ? req.body : undefined,
@@ -46,12 +51,12 @@ const createApp = (): Express => {
   }
 
   // Health check
-  app.get('/health', (req, res) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // API root endpoint
-  app.get('/api/v1', (req, res) => {
+  app.get('/api/v1', (_req: Request, res: Response) => {
     res.json({
       name: 'Amber Best Practice Portal API',
       version: '1.0.0',

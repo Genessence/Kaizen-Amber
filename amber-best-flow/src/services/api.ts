@@ -292,10 +292,14 @@ class APIService {
     if (params?.plant_id) queryParams.append('plant_id', params.plant_id);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.search) queryParams.append('search', params.search);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
     if (params?.is_benchmarked !== undefined) {
       // Convert boolean to string 'true' or 'false'
       queryParams.append('is_benchmarked', params.is_benchmarked ? 'true' : 'false');
     }
+    if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
     if (params?.limit) queryParams.append('page_size', params.limit.toString());
     if (params?.offset) {
       const page = Math.floor(params.offset / (params.limit || 20)) + 1;
@@ -322,10 +326,14 @@ class APIService {
         plant_id: item.plant?.id || item.plant_id,
         plant_name: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
         plant: item.plant?.name || (typeof item.plant === 'string' ? item.plant : ''),
+        submitted_by_name: item.submitted_by?.full_name || (typeof item.submitted_by === 'string' ? item.submitted_by : '') || '',
         status: item.status,
+        savings_amount: item.savings_amount || 0,
+        savings_currency: item.savings_currency || 'rupees',
         is_benchmarked: item.is_benchmarked || false,
         question_count: item.question_count || 0,
         submitted_date: item.submitted_date,
+        has_images: false, // This would need to be included in backend response if needed
         created_at: item.created_at,
       })),
       pagination: {
@@ -335,6 +343,19 @@ class APIService {
         has_more: response.page < response.total_pages,
       },
     };
+  }
+
+  /**
+   * Get draft practices for current user
+   */
+  async getDraftPractices(): Promise<BestPracticeListItem[]> {
+    const response = await this.listBestPractices({
+      status: 'draft',
+      limit: 100,
+      sort_by: 'created_at',
+      sort_order: 'desc'
+    });
+    return response.data;
   }
 
   /**
@@ -371,6 +392,9 @@ class APIService {
       submitted_date: data.submitted_date,
       is_benchmarked: data.is_benchmarked || false,
       benchmarked_date: data.benchmarked_date,
+      before_image_url: data.before_image_url,
+      after_image_url: data.after_image_url,
+      documents: data.documents || [],
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
@@ -498,8 +522,10 @@ class APIService {
       practice_id: item.id,
       practice_title: item.title,
       practice_category: item.category?.name || '',
+      plant_id: item.plant?.id || item.plant_id,
       plant_name: item.plant?.name || item.plant_name,
       benchmarked_date: item.benchmarked_date,
+      is_benchmarked: item.is_benchmarked !== false,
       copy_count: 0,
       problem_statement: item.problem_statement || '',
       solution: item.solution || item.description || '',
@@ -934,6 +960,7 @@ class APIService {
           practice_title: bp.title || bp.practice_title || '',
           practice_category: bp.category || bp.practice_category || '',
           plant_name: bp.plant || bp.plant_name || '',
+          plant_id: bp.plant_id || '',
           benchmarked_date: bp.date ? formatRelativeTime(bp.date) : bp.benchmarked_date || '',
           benchmarked_date_iso: bp.date || bp.benchmarked_date_iso || '',
           savings_amount: bp.savings_amount || null,
@@ -992,10 +1019,10 @@ class APIService {
     const data = await this.request<any[]>('/analytics/plant-performance?' + params.toString());
     
     return data.map((item) => ({
-      plant_id: item.plant.id,
-      plant_name: item.plant.name,
-      short_name: item.plant.short_name,
-      submitted: item.practice_count || 0,
+      plant_id: item.plant_id,
+      plant_name: item.plant_name,
+      short_name: item.short_name || item.plant_short_name,
+      submitted: item.submitted || item.practice_count || 0,
     }));
   }
 
@@ -1334,7 +1361,26 @@ class APIService {
    * List practice images
    */
   async getPracticeImages(practiceId: string): Promise<PracticeImage[]> {
-    return this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
+    const images = await this.request<PracticeImage[]>(`/uploads/images/${practiceId}`);
+    console.log('[apiService.getPracticeImages] Raw response:', images);
+    
+    // Ensure we return an array and map to correct structure
+    if (!Array.isArray(images)) {
+      console.warn('[apiService.getPracticeImages] Response is not an array:', images);
+      return [];
+    }
+    
+    return images.map((img: any) => ({
+      id: img.id,
+      practice_id: img.practice_id,
+      image_type: img.image_type,
+      blob_container: img.blob_container || '',
+      blob_name: img.blob_name || '',
+      blob_url: img.blob_url || '',
+      file_size: img.file_size || 0,
+      content_type: img.content_type || '',
+      uploaded_at: img.uploaded_at || img.uploadedAt || new Date().toISOString(),
+    }));
   }
 
   /**

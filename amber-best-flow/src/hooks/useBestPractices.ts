@@ -60,17 +60,27 @@ export const useRecentPractices = (limit: number = 10) => {
   });
 };
 
+export const useDraftPractices = () => {
+  return useQuery<BestPracticeListItem[]>({
+    queryKey: ['draft-practices'],
+    queryFn: () => apiService.getDraftPractices(),
+    staleTime: 2 * 60 * 1000, // 2 minutes - fresher data for drafts
+  });
+};
+
 export const useCreateBestPractice = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: BestPracticeCreate) => apiService.createBestPractice(data),
     onSuccess: () => {
-      // Invalidate and refetch
+      // Invalidate and refetch all relevant queries
       queryClient.invalidateQueries({ queryKey: ['best-practices'] });
       queryClient.invalidateQueries({ queryKey: ['my-practices'] });
       queryClient.invalidateQueries({ queryKey: ['recent-practices'] });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
       toast.success('Best practice created successfully!');
     },
     onError: (error: Error) => {
@@ -90,6 +100,9 @@ export const useUpdateBestPractice = () => {
       queryClient.invalidateQueries({ queryKey: ['best-practices'] });
       queryClient.invalidateQueries({ queryKey: ['best-practice', variables.practiceId] });
       queryClient.invalidateQueries({ queryKey: ['my-practices'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
       toast.success('Best practice updated successfully!');
     },
     onError: (error: Error) => {
@@ -106,6 +119,9 @@ export const useDeleteBestPractice = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['best-practices'] });
       queryClient.invalidateQueries({ queryKey: ['my-practices'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
       toast.success('Best practice deleted successfully!');
     },
     onError: (error: Error) => {

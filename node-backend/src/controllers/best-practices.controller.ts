@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
+import { savingsCalculatorService } from '../services/savings-calculator.service';
 import env from '../config/env';
 
 export class BestPracticesController {
@@ -27,6 +28,13 @@ export class BestPracticesController {
         isDeleted: false,
       };
 
+      // Auto-filter by plant for plant users if no explicit plant_id provided
+      // This ensures plant users only see practices from their own plant
+      // HQ admins can see all practices unless they explicitly filter
+      if (req.user?.role === 'plant' && !plantId) {
+        where.plantId = req.user.plantId;
+      }
+
       if (search) {
         where.OR = [
           { title: { contains: search, mode: 'insensitive' } },
@@ -43,7 +51,13 @@ export class BestPracticesController {
       }
 
       if (status) {
-        where.status = status;
+        // Support comma-separated statuses (e.g., "submitted,approved")
+        if (status.includes(',')) {
+          const statuses = status.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          where.status = { in: statuses };
+        } else {
+          where.status = status;
+        }
       }
 
       // Handle is_benchmarked filter: 'true', 'false', or undefined
@@ -161,6 +175,22 @@ export class BestPracticesController {
               },
             },
           },
+          images: {
+            select: {
+              id: true,
+              imageType: true,
+              blobUrl: true,
+            },
+          },
+          documents: {
+            select: {
+              id: true,
+              documentName: true,
+              blobUrl: true,
+              fileSize: true,
+              contentType: true,
+            },
+          },
         },
       });
 
@@ -204,6 +234,15 @@ export class BestPracticesController {
         submitted_date: practice.submittedDate?.toISOString(),
         is_benchmarked: !!practice.benchmarked,
         benchmarked_date: practice.benchmarked?.benchmarkedDate.toISOString(),
+        before_image_url: practice.images?.find(img => img.imageType === 'before')?.blobUrl || null,
+        after_image_url: practice.images?.find(img => img.imageType === 'after')?.blobUrl || null,
+        documents: practice.documents?.map(doc => ({
+          id: doc.id,
+          document_name: doc.documentName,
+          blob_url: doc.blobUrl,
+          file_size: doc.fileSize,
+          content_type: doc.contentType,
+        })) || [],
         created_at: practice.createdAt.toISOString(),
         updated_at: practice.updatedAt.toISOString(),
       });
@@ -278,6 +317,50 @@ export class BestPracticesController {
           },
         },
       });
+
+      // Auto-recalculate savings if practice is submitted with savings data
+      if (practice.status === 'submitted' && practice.savingsAmount && practice.submittedDate) {
+        const submittedDate = practice.submittedDate;
+        const year = submittedDate.getFullYear();
+        const month = submittedDate.getMonth() + 1;
+        
+        // Trigger recalculation asynchronously (non-blocking)
+        // Recalculate current month first, then all subsequent months to update YTD correctly
+        savingsCalculatorService.recalculatePlantMonthlySavings(plantId, year, month)
+          .then(() => {
+            // After updating current month, recalculate all subsequent months to update YTD
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth() + 1;
+            
+            // Only recalculate future months if we're in the same year
+            if (year === currentYear && month < currentMonth) {
+              // Recalculate all months from (month + 1) to current month to update YTD
+              const recalcPromises = [];
+              for (let m = month + 1; m <= currentMonth; m++) {
+                recalcPromises.push(
+                  savingsCalculatorService.recalculatePlantMonthlySavings(plantId, year, m)
+                    .catch(error => {
+                      console.error(`Failed to recalculate savings for ${year}-${m}:`, error);
+                    })
+                );
+              }
+              return Promise.all(recalcPromises);
+            }
+            return undefined;
+          })
+          .catch(error => {
+            console.error('Failed to auto-recalculate savings:', error);
+            // Log more details for debugging
+            console.error('Error details:', {
+              plantId,
+              year,
+              month,
+              practiceId: practice.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
 
       res.status(201).json({
         id: practice.id,
@@ -354,6 +437,33 @@ export class BestPracticesController {
         },
       });
 
+      // Auto-recalculate savings if:
+      // 1. Status changed to 'approved'
+      // 2. Savings fields changed for an approved practice
+      // 3. Status is 'submitted' and savings data exists
+      const statusChanged = practice.status !== updated.status;
+      const savingsChanged = 
+        practice.savingsAmount !== updated.savingsAmount ||
+        practice.savingsCurrency !== updated.savingsCurrency ||
+        practice.savingsPeriod !== updated.savingsPeriod;
+      
+      const shouldRecalculate = 
+        (statusChanged && updated.status === 'approved') ||
+        (savingsChanged && (updated.status === 'approved' || updated.status === 'submitted')) ||
+        (updated.status === 'submitted' && updated.savingsAmount);
+
+      if (shouldRecalculate && updated.submittedDate) {
+        const submittedDate = updated.submittedDate;
+        const year = submittedDate.getFullYear();
+        const month = submittedDate.getMonth() + 1;
+        
+        // Trigger recalculation asynchronously (non-blocking)
+        savingsCalculatorService.recalculatePlantMonthlySavings(practice.plantId, year, month)
+          .catch(error => {
+            console.error('Failed to auto-recalculate savings:', error);
+          });
+      }
+
       res.json({
         id: updated.id,
         title: updated.title,
@@ -399,6 +509,19 @@ export class BestPracticesController {
         where: { id },
         data: { isDeleted: true },
       });
+
+      // Auto-recalculate savings if deleted practice had savings data
+      if (practice.savingsAmount && practice.submittedDate) {
+        const submittedDate = practice.submittedDate;
+        const year = submittedDate.getFullYear();
+        const month = submittedDate.getMonth() + 1;
+        
+        // Trigger recalculation asynchronously (non-blocking)
+        savingsCalculatorService.recalculatePlantMonthlySavings(practice.plantId, year, month)
+          .catch(error => {
+            console.error('Failed to auto-recalculate savings after delete:', error);
+          });
+      }
 
       res.json({
         success: true,

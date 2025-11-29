@@ -1,0 +1,151 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - test
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+      - "README.md"
+
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20.x"
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USER: ${{ secrets.EC2_USER }}
+  EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+  DEPLOY_PATH: /home/ubuntu/Kaizen-Amber
+
+jobs:
+  ci:
+    name: CI - Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install backend & build
+        working-directory: ./node-backend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install frontend & build
+        working-directory: ./amber-best-flow
+        run: |
+          npm ci
+          npm run build
+
+  deploy:
+    name: CD - Deploy to EC2
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build project
+        run: |
+          npm --prefix node-backend ci
+          npm --prefix node-backend run build
+
+          npm --prefix amber-best-flow ci
+          npm --prefix amber-best-flow run build
+
+          # Verify images are in dist folder
+          echo "Checking if images are in dist folder..."
+          ls -la amber-best-flow/dist/images/ || echo "WARNING: dist/images not found"
+          ls -la amber-best-flow/public/images/ || echo "WARNING: public/images not found"
+
+      - name: Create deployment package
+        run: |
+          # Include both source (for potential rebuild) and dist (pre-built)
+          tar -czf deploy.tar.gz \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            --exclude='*.log' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='amber-best-flow/node_modules' \
+            --exclude='node-backend/node_modules' \
+            node-backend/ \
+            amber-best-flow/ \
+            ecosystem.config.js \
+            deploy.sh \
+            nginx.conf
+
+          # Verify public/images is in the package
+          echo "Verifying public/images is included..."
+          tar -tzf deploy.tar.gz | grep "amber-best-flow/public/images" | head -3 || echo "WARNING: public/images not in package"
+
+          # Verify dist/images is in the package  
+          echo "Verifying dist/images is included..."
+          tar -tzf deploy.tar.gz | grep "amber-best-flow/dist/images" | head -3 || echo "WARNING: dist/images not in package"
+
+      - name: Upload to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            deploy.tar.gz \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ env.DEPLOY_PATH }}/deploy.tar.gz
+
+      - name: Execute deployment on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+
+            mkdir -p backups
+            BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$BACKUP_DIR"
+
+            cp -r node-backend "$BACKUP_DIR" || true
+            cp -r amber-best-flow "$BACKUP_DIR" || true
+
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
+
+            # Verify images are present after extraction
+            echo "Verifying images after extraction..."
+            if [ -d "amber-best-flow/dist/images" ]; then
+              echo "✓ dist/images found"
+              ls -la amber-best-flow/dist/images/ | head -5
+            else
+              echo "⚠ dist/images not found - will be created during build"
+            fi
+            
+            if [ -d "amber-best-flow/public/images" ]; then
+              echo "✓ public/images found"
+              ls -la amber-best-flow/public/images/ | head -5
+            else
+              echo "✗ public/images not found - images may be missing!"
+            fi
+
+            chmod +x deploy.sh
+            ./deploy.sh
+
+            cd node-backend
+            npx prisma migrate deploy || true
+
+            if curl -f http://localhost:3000/api/v1/health; then
+              echo "Health OK"
+            else
+              echo "Health FAIL"
+            fi
+
+          ENDSSH

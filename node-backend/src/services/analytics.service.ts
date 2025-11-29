@@ -1,17 +1,25 @@
 import prisma from '../config/database';
 import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export class AnalyticsService {
   /**
    * Calculate star rating based on BOTH monthly and YTD savings thresholds
-   * According to documentation:
-   * - 5 stars: YTD > 200L and Monthly > 16L
-   * - 4 stars: YTD 150-200L and Monthly 12-16L
-   * - 3 stars: YTD 100-150L and Monthly 8-12L
-   * - 2 stars: YTD 50-100L and Monthly 4-8L
-   * - 1 star: YTD > 50L and Monthly > 4L
-   * - 0 stars: Otherwise
+   * 
+   * Boundary Logic: Exclusive lower, inclusive upper for consistent intervals
+   * - 5 stars: YTD > 200L AND Monthly > 16L
+   * - 4 stars: YTD ∈ (150, 200] AND Monthly ∈ (12, 16]
+   * - 3 stars: YTD ∈ (100, 150] AND Monthly ∈ (8, 12]
+   * - 2 stars: YTD ∈ (50, 100] AND Monthly ∈ (4, 8]
+   * - 1 star: YTD ∈ (0, 50] AND Monthly ∈ (0, 4]
+   * - 0 stars: YTD = 0 OR Monthly = 0
+   * 
+   * Examples:
+   * - 16L monthly + 200L YTD = 4 stars (at upper boundary)
+   * - 16.1L monthly + 200.1L YTD = 5 stars (exceeds 4-star threshold)
+   * - 8L monthly + 100L YTD = 2 stars (at upper boundary)
+   * - 4L monthly + 50L YTD = 1 star (at upper boundary)
+   * - 5L monthly + 30L YTD = 1 star (YTD limits overall rating)
+   * - 20L monthly + 60L YTD = 2 stars (both must meet threshold)
    * 
    * @param monthlySavings - Monthly savings amount (in lakhs)
    * @param ytdSavings - Year-to-date savings amount (in lakhs)
@@ -23,10 +31,14 @@ export class AnalyticsService {
     ytdSavings: Prisma.Decimal | null,
     currency: string = 'lakhs'
   ): number {
+    // Explicit zero/null check
     if (!monthlySavings || !ytdSavings) return 0;
 
     let monthly = Number(monthlySavings);
     let ytd = Number(ytdSavings);
+    
+    // Return 0 for zero savings
+    if (monthly === 0 || ytd === 0) return 0;
     
     // Convert to lakhs if in crores
     if (currency === 'crores') {
@@ -34,25 +46,31 @@ export class AnalyticsService {
       ytd = ytd * 100;
     }
 
-    // Both thresholds must be met for each star level
-    // 5 stars: YTD > 200L and Monthly > 16L
+    // BOTH thresholds must be met for each star level
+    // Check from highest to lowest to avoid overlaps
+    
+    // 5 stars: YTD > 200L AND Monthly > 16L
     if (ytd > 200 && monthly > 16) {
       return 5;
     }
-    // 4 stars: YTD 150-200L and Monthly 12-16L
-    if (ytd >= 150 && ytd <= 200 && monthly >= 12 && monthly <= 16) {
+    
+    // 4 stars: YTD in (150, 200] AND Monthly in (12, 16]
+    if (ytd > 150 && ytd <= 200 && monthly > 12 && monthly <= 16) {
       return 4;
     }
-    // 3 stars: YTD 100-150L and Monthly 8-12L
-    if (ytd >= 100 && ytd < 150 && monthly >= 8 && monthly < 12) {
+    
+    // 3 stars: YTD in (100, 150] AND Monthly in (8, 12]
+    if (ytd > 100 && ytd <= 150 && monthly > 8 && monthly <= 12) {
       return 3;
     }
-    // 2 stars: YTD 50-100L and Monthly 4-8L
-    if (ytd >= 50 && ytd < 100 && monthly >= 4 && monthly < 8) {
+    
+    // 2 stars: YTD in (50, 100] AND Monthly in (4, 8]
+    if (ytd > 50 && ytd <= 100 && monthly > 4 && monthly <= 8) {
       return 2;
     }
-    // 1 star: YTD > 50L and Monthly > 4L
-    if (ytd > 50 && monthly > 4) {
+    
+    // 1 star: YTD in (0, 50] AND Monthly in (0, 4]
+    if (ytd > 0 && ytd <= 50 && monthly > 0 && monthly <= 4) {
       return 1;
     }
     
@@ -73,12 +91,19 @@ export class AnalyticsService {
 
   /**
    * Get dashboard overview
+   * If plantId is provided, filters data for that specific plant
    */
-  async getDashboardOverview(currency: string = 'lakhs') {
+  async getDashboardOverview(currency: string = 'lakhs', plantId?: string) {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
     const startOfYear = new Date(currentYear, 0, 1);
+
+    // Build base where clause - filter by plantId if provided
+    const baseWhere: { isDeleted: boolean; plantId?: string } = { isDeleted: false };
+    if (plantId) {
+      baseWhere.plantId = plantId;
+    }
 
     // Run all count queries in parallel for better performance
     const [
@@ -89,11 +114,11 @@ export class AnalyticsService {
       benchmarkedCount,
     ] = await Promise.all([
       prisma.bestPractice.count({
-        where: { isDeleted: false },
+        where: baseWhere,
       }),
       prisma.bestPractice.count({
         where: {
-          isDeleted: false,
+          ...baseWhere,
           submittedDate: {
             gte: startOfMonth,
             lt: new Date(currentYear, currentMonth, 1),
@@ -102,7 +127,7 @@ export class AnalyticsService {
       }),
       prisma.bestPractice.count({
         where: {
-          isDeleted: false,
+          ...baseWhere,
           submittedDate: {
             gte: startOfYear,
           },
@@ -110,8 +135,8 @@ export class AnalyticsService {
       }),
       prisma.bestPractice.aggregate({
         where: {
-          isDeleted: false,
-          status: 'approved',
+          ...baseWhere,
+          status: { in: ['submitted', 'approved'] },
           savingsAmount: { not: null },
         },
         _sum: { savingsAmount: true },
@@ -119,7 +144,7 @@ export class AnalyticsService {
       prisma.benchmarkedPractice.count({
         where: {
           practice: {
-            isDeleted: false,
+            ...baseWhere,
           },
         },
       }),
@@ -127,12 +152,48 @@ export class AnalyticsService {
 
     const totalSavings = savingsResult._sum.savingsAmount || new Prisma.Decimal(0);
 
+    // Calculate star rating if plantId is provided (plant-specific dashboard)
+    let stars = 0;
+    if (plantId) {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      
+      // Get monthly and YTD savings for this plant
+      const monthlySavingsRecord = await prisma.monthlySavings.findUnique({
+        where: {
+          plantId_year_month: {
+            plantId,
+            year: currentYear,
+            month: currentMonth,
+          },
+        },
+      });
+
+      const ytdSavingsRecords = await prisma.monthlySavings.groupBy({
+        by: ['plantId'],
+        where: {
+          plantId,
+          year: currentYear,
+        },
+        _sum: {
+          totalSavings: true,
+        },
+      });
+
+      const monthlySavings = monthlySavingsRecord?.totalSavings || new Prisma.Decimal(0);
+      const ytdSavings = ytdSavingsRecords[0]?._sum.totalSavings || new Prisma.Decimal(0);
+      
+      stars = this.calculateStarRating(monthlySavings, ytdSavings, currency);
+    }
+
     return {
       total_practices: totalPractices,
       this_month_practices: thisMonthPractices,
       ytd_practices: ytdPractices,
+      this_month_savings: plantId ? this.formatCurrency(totalSavings, currency) : '0', // For plant users, show monthly savings
       total_savings: this.formatCurrency(totalSavings, currency),
       benchmarked_count: benchmarkedCount,
+      stars,
     };
   }
 
@@ -154,15 +215,15 @@ export class AnalyticsService {
       benchmarkStats,
       recentPractices,
     ] = await Promise.all([
-      this.getDashboardOverview(currency),
+      this.getDashboardOverview(currency, plantId), // Pass plantId to filter overview
       this.getLeaderboardSummary(),
       this.getCopySpreadSummary(),
-      this.getCategoryBreakdownSummary(),
+      this.getCategoryBreakdownSummary(plantId), // Pass plantId to filter categories
       this.getRecentBenchmarkedSummary(),
       this.getStarRatingsSummary(currency),
       this.getPlantPerformanceSummary(),
       this.getBenchmarkStatsSummary(),
-      this.getRecentPracticesSummary(4),
+      this.getRecentPracticesSummary(4, plantId), // Pass plantId to filter recent practices
     ]);
     
     // Include plant-specific data if plantId provided (run in parallel)
@@ -326,7 +387,7 @@ export class AnalyticsService {
     }));
   }
 
-  private async getCategoryBreakdownSummary() {
+  private async getCategoryBreakdownSummary(plantId?: string) {
     // Optimize: Use _count instead of loading all practices
     const categories = await prisma.category.findMany({
       select: {
@@ -340,6 +401,7 @@ export class AnalyticsService {
             practices: {
               where: {
                 isDeleted: false,
+                ...(plantId ? { plantId } : {}),
               },
             },
           },
@@ -546,15 +608,26 @@ export class AnalyticsService {
       .sort((a, b) => b.benchmarked_count - a.benchmarked_count);
   }
 
-  private async getRecentPracticesSummary(limit: number = 4) {
-    const practices = await prisma.bestPractice.findMany({
-      where: {
-        isDeleted: false,
-        // Show all submitted practices (not just approved) - users want to see latest submissions
-        status: {
-          in: ['submitted', 'approved'], // Include both submitted and approved practices
-        },
+  private async getRecentPracticesSummary(limit: number = 4, plantId?: string) {
+    const whereClause: {
+      isDeleted: boolean;
+      status: { in: string[] };
+      plantId?: string;
+    } = {
+      isDeleted: false,
+      // Show all submitted practices (not just approved) - users want to see latest submissions
+      status: {
+        in: ['submitted', 'approved'], // Include both submitted and approved practices
       },
+    };
+
+    // Filter by plantId if provided (for plant users)
+    if (plantId) {
+      whereClause.plantId = plantId;
+    }
+
+    const practices = await prisma.bestPractice.findMany({
+      where: whereClause,
       include: {
         category: {
           select: { name: true },
@@ -610,7 +683,7 @@ export class AnalyticsService {
         },
       },
       orderBy: { submittedDate: 'desc' },
-      take: 10,
+      // Removed take limit to show all practices in monthly breakdown
     });
 
     return practices.map((practice) => ({
@@ -635,7 +708,7 @@ export class AnalyticsService {
       where: {
         plantId,
         isDeleted: false,
-        status: 'approved',
+        status: { in: ['submitted', 'approved'] },
         submittedDate: {
           gte: startOfYear,
         },
@@ -663,21 +736,29 @@ export class AnalyticsService {
       monthlyData[monthKey].count += 1;
     });
 
-    // Convert to array and calculate stars
-    return Object.keys(monthlyData)
-      .sort()
-      .map((monthKey) => {
-        const [year, month] = monthKey.split('-');
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const savings = monthlyData[monthKey].savings;
-        const stars = this.calculateStarRating(new Prisma.Decimal(savings), currency);
+    // Convert to array and calculate stars with cumulative YTD
+    const sortedMonths = Object.keys(monthlyData).sort();
+    let cumulativeYTD = 0;
+    
+    return sortedMonths.map((monthKey) => {
+      const monthlySavings = monthlyData[monthKey].savings;
+      
+      // Calculate cumulative YTD (sum from Jan to current month)
+      cumulativeYTD += monthlySavings;
+      
+      // Calculate stars using BOTH monthly and YTD thresholds
+      const stars = this.calculateStarRating(
+        new Prisma.Decimal(monthlySavings),
+        new Prisma.Decimal(cumulativeYTD),
+        currency
+      );
 
-        return {
-          month: `${monthNames[parseInt(month) - 1]} ${year}`,
-          savings: this.formatCurrency(new Prisma.Decimal(savings), currency),
-          stars,
-        };
-      });
+      return {
+        month: monthKey, // Return "YYYY-MM" format for consistent parsing
+        savings: this.formatCurrency(new Prisma.Decimal(monthlySavings), currency),
+        stars,
+      };
+    });
   }
 }
 

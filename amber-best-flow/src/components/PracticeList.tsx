@@ -2,10 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
+import {
   Search,
   Filter,
   FileText,
@@ -14,23 +20,28 @@ import {
   User,
   IndianRupee,
   MapPin,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { ListSkeleton } from "@/components/ui/skeletons";
 import { useBestPractices } from "@/hooks/useBestPractices";
 import { useCategories } from "@/hooks/useCategories";
 import { usePlants } from "@/hooks/usePlants";
-import { useBenchmarkPractice, useUnbenchmarkPractice } from "@/hooks/useBenchmarking";
+import {
+  useBenchmarkPractice,
+  useUnbenchmarkPractice,
+} from "@/hooks/useBenchmarking";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PracticeListProps {
   userRole: "plant" | "hq";
   isBenchmarked?: (id?: string) => boolean;
 }
 
-
 const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showFilters, setShowFilters] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [plantFilter, setPlantFilter] = useState<string>("all");
@@ -39,20 +50,32 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [processingPracticeId, setProcessingPracticeId] = useState<string | null>(null);
+  const [processingPracticeId, setProcessingPracticeId] = useState<
+    string | null
+  >(null);
 
   // Fetch data from API - sorted by creation date (newest first)
   // Reduced limit for better performance - use pagination if needed
-  const { data: practicesData, isLoading: practicesLoading } = useBestPractices({
-    category_id: categoryFilter !== "all" ? categoryFilter : undefined,
-    plant_id: plantFilter !== "all" ? plantFilter : undefined,
-    search: searchTerm || undefined,
-    start_date: startDate || undefined,
-    end_date: endDate || undefined,
-    limit: 50, // Reduced from 100 for faster initial load
-    sort_by: 'created_at', // Sort by creation date
-    sort_order: 'desc', // Newest first
-  });
+  // For plant users, backend automatically filters by their plant_id
+  // For HQ admins, they can filter by plant if needed
+  const { data: practicesData, isLoading: practicesLoading } = useBestPractices(
+    {
+      category_id: categoryFilter !== "all" ? categoryFilter : undefined,
+      // For plant users: backend auto-filters by plant_id, so we don't need to pass it
+      // For HQ admins: allow explicit plant filtering via plantFilter
+      plant_id:
+        userRole === "hq" && plantFilter !== "all" ? plantFilter : undefined,
+      search: searchTerm || undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      // Exclude drafts - only show submitted and approved practices
+      // Drafts are only visible in the DraftsDialog
+      status: 'submitted,approved',
+      limit: 50, // Reduced from 100 for faster initial load
+      sort_by: "created_at", // Sort by creation date
+      sort_order: "desc", // Newest first
+    }
+  );
 
   const { data: categoriesData } = useCategories();
   const { data: plantsData } = usePlants(true);
@@ -62,7 +85,7 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   // Get practices from API
   const allPractices = practicesData?.data || [];
   const totalPractices = practicesData?.pagination?.total || 0;
-  
+
   // Filter practices based on user role (plant users see only their plant)
   const practices = useMemo(() => {
     // Note: Plant filtering is handled by backend API based on user role
@@ -71,26 +94,45 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
   }, [allPractices]);
 
   const uniqueCategories = useMemo(
-    () => categoriesData?.map(cat => cat.name).sort() || [],
+    () => categoriesData?.map((cat) => cat.name).sort() || [],
     [categoriesData]
   );
 
   const uniquePlants = useMemo(
-    () => plantsData?.map(plant => plant.name).sort() || [],
+    () => plantsData?.map((plant) => plant.name).sort() || [],
     [plantsData]
   );
 
   const uniqueSavings = useMemo(
-    () => Array.from(new Set(allPractices.map((practice) => {
-      if (!practice.savings_amount) return null;
-      const currency = practice.savings_currency === 'crores' ? 'Cr' : practice.savings_currency === 'lakhs' ? 'L' : '';
-      return `₹${practice.savings_amount}${currency}`;
-    }).filter(Boolean))).sort(),
+    () =>
+      Array.from(
+        new Set(
+          allPractices
+            .map((practice) => {
+              if (!practice.savings_amount) return null;
+              const currency =
+                practice.savings_currency === "crores"
+                  ? "Cr"
+                  : practice.savings_currency === "lakhs"
+                  ? "L"
+                  : "";
+              return `₹${practice.savings_amount}${currency}`;
+            })
+            .filter(Boolean)
+        )
+      ).sort(),
     [allPractices]
   );
 
   const uniqueAreas = useMemo(
-    () => Array.from(new Set(allPractices.map((practice) => practice.area_implemented).filter(Boolean))).sort(),
+    () =>
+      Array.from(
+        new Set(
+          allPractices
+            .map((practice) => practice.area_implemented)
+            .filter(Boolean)
+        )
+      ).sort(),
     [allPractices]
   );
 
@@ -102,7 +144,12 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
     if (savingsFilter !== "all") {
       filtered = filtered.filter((practice) => {
         if (!practice.savings_amount) return false;
-        const currency = practice.savings_currency === 'crores' ? 'Cr' : practice.savings_currency === 'lakhs' ? 'L' : '';
+        const currency =
+          practice.savings_currency === "crores"
+            ? "Cr"
+            : practice.savings_currency === "lakhs"
+            ? "L"
+            : "";
         const savingsStr = `₹${practice.savings_amount}${currency}`;
         return savingsStr === savingsFilter;
       });
@@ -110,7 +157,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
 
     // Apply area filter
     if (areaFilter !== "all") {
-      filtered = filtered.filter((practice) => practice.area_implemented === areaFilter);
+      filtered = filtered.filter(
+        (practice) => practice.area_implemented === areaFilter
+      );
     }
 
     // Sort by creation date (newest first) as fallback to ensure correct order
@@ -118,8 +167,12 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
       // If created_at is not available, use submitted_date as fallback
-      const fallbackDateA = a.submitted_date ? new Date(a.submitted_date).getTime() : 0;
-      const fallbackDateB = b.submitted_date ? new Date(b.submitted_date).getTime() : 0;
+      const fallbackDateA = a.submitted_date
+        ? new Date(a.submitted_date).getTime()
+        : 0;
+      const fallbackDateB = b.submitted_date
+        ? new Date(b.submitted_date).getTime()
+        : 0;
       const finalDateA = dateA || fallbackDateA;
       const finalDateB = dateB || fallbackDateB;
       return finalDateB - finalDateA; // Descending order (newest first)
@@ -140,13 +193,16 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
 
   // Removed status concept (approved/revision/pending)
 
-  const getCategoryColor = (category: string | undefined | { name?: string } | any) => {
+  const getCategoryColor = (
+    category: string | undefined | { name?: string } | any
+  ) => {
     // Handle category as object or string
-    const categoryName = typeof category === 'string' 
-      ? category 
-      : (category?.name || category?.category_name || '');
-    
-    if (!categoryName || typeof categoryName !== 'string') {
+    const categoryName =
+      typeof category === "string"
+        ? category
+        : category?.name || category?.category_name || "";
+
+    if (!categoryName || typeof categoryName !== "string") {
       return "bg-gray-50 text-gray-700 border-gray-200";
     }
     switch (categoryName.toLowerCase()) {
@@ -176,10 +232,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
         <div>
           <h1 className="text-3xl font-bold">Best Practices Library</h1>
           <p className="text-muted-foreground mt-1">
-            {userRole === "plant" 
-              ? "Browse best practices from your plant" 
-              : "Browse and explore best practices from across all plants"
-            }
+            {userRole === "plant"
+              ? "Browse best practices from your plant"
+              : "Browse and explore best practices from across all plants"}
           </p>
         </div>
         <Button variant="outline" onClick={() => navigate("/dashboard")}>
@@ -212,8 +267,13 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
           {showFilters && (
             <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Category</p>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Category
+                </p>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={setCategoryFilter}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
@@ -229,7 +289,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Plant</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Plant
+                </p>
                 <Select value={plantFilter} onValueChange={setPlantFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="All plants" />
@@ -246,7 +308,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Savings</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Savings
+                </p>
                 <Select value={savingsFilter} onValueChange={setSavingsFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="All savings" />
@@ -263,7 +327,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Area Implemented</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Area Implemented
+                </p>
                 <Select value={areaFilter} onValueChange={setAreaFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="All areas" />
@@ -280,7 +346,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">From date</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  From date
+                </p>
                 <Input
                   type="date"
                   value={startDate}
@@ -289,7 +357,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">To date</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  To date
+                </p>
                 <Input
                   type="date"
                   value={endDate}
@@ -312,8 +382,12 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
         <Card className="shadow-soft hover:shadow-medium transition-smooth border border-border/50">
           <CardContent className="p-4">
             <div className="flex items-baseline justify-between">
-              <p className="text-sm text-muted-foreground">Total Best Practices</p>
-              <div className="text-2xl font-bold text-primary">{totalPractices}</div>
+              <p className="text-sm text-muted-foreground">
+                Total Best Practices
+              </p>
+              <div className="text-2xl font-bold text-primary">
+                {totalPractices}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -336,7 +410,9 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
           <CardTitle className="flex items-center space-x-2">
             <FileText className="h-5 w-5 text-primary" />
             <span>All Best Practices</span>
-            {!practicesLoading && <Badge variant="outline">{filteredPractices.length}</Badge>}
+            {!practicesLoading && (
+              <Badge variant="outline">{filteredPractices.length}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -346,120 +422,159 @@ const PracticeList = ({ userRole, isBenchmarked }: PracticeListProps) => {
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">No best practices found.</p>
-              <p className="text-sm text-muted-foreground mt-2">Try adjusting your filters or search terms.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Try adjusting your filters or search terms.
+              </p>
             </div>
           ) : (
-          <div className="space-y-4">
-            {filteredPractices.map((practice) => (
-              <div
-                key={practice.id}
-                className="flex items-center justify-between p-6 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth group hover-lift"
-                onClick={() => navigate(`/practices/${practice.id}`)}
-              >
-                <div className="flex-1">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                        {practice.title}
-                      </h3>
-                      <p className="text-muted-foreground mt-1 line-clamp-2">
-                        {practice.description}
-                      </p>
-                      
-                      <div className="flex items-center space-x-4 mt-3 flex-wrap gap-2">
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline" className={getCategoryColor(practice.category_name || practice.category)}>
-                            {practice.category_name || practice.category || "Other"}
-                          </Badge>
-                        </div>
+            <div className="space-y-4">
+              {filteredPractices.map((practice) => (
+                <div
+                  key={practice.id}
+                  className="flex items-center justify-between p-6 border rounded-xl hover:bg-accent/50 hover:border-primary/20 cursor-pointer transition-smooth group hover-lift"
+                  onClick={() => navigate(`/practices/${practice.id}`)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-1 min-w-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
+                                {practice.title}
+                              </h3>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md">{practice.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <p className="text-muted-foreground mt-1 line-clamp-2">
+                          {practice.description}
+                        </p>
                         
-                        <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{practice.submitted_by_name || practice.submittedBy || "Unknown"}</span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                          <Building2 className="h-3 w-3" />
-                          <span>{practice.plant_name || practice.plant || "Unknown"}</span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
-                        </div>
-                        
-                        {practice.savings_amount && (
-                          <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                            <IndianRupee className="h-3 w-3" />
-                            <span>
-                              ₹{practice.savings_amount}
-                              {practice.savings_currency === 'crores' ? 'Cr' : practice.savings_currency === 'lakhs' ? 'L' : ''}
-                            </span>
+                        <div className="flex items-center space-x-4 mt-3 flex-wrap gap-2">
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className={getCategoryColor(practice.category_name || practice.category)}>
+                              {practice.category_name || practice.category || "Other"}
+                            </Badge>
                           </div>
-                        )}
-                        
-                        {practice.area_implemented && (
+                          
                           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            <span>{practice.area_implemented}</span>
+                            <User className="h-3 w-3" />
+                            <span>{practice.submitted_by_name || practice.submittedBy || "Unknown"}</span>
                           </div>
-                        )}
+                          
+                          <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                            <Building2 className="h-3 w-3" />
+                            <span>{practice.plant_name || practice.plant || "Unknown"}</span>
+                          </div>
+                          
+                          <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDate(practice.submitted_date || practice.submittedDate)}</span>
+                          </div>
+                          
+                          {practice.savings_amount && (
+                            <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                              <IndianRupee className="h-3 w-3" />
+                              <span>
+                                ₹{practice.savings_amount}
+                                {practice.savings_currency === "crores"
+                                  ? "Cr"
+                                  : practice.savings_currency === "lakhs"
+                                  ? "L"
+                                  : ""}
+                              </span>
+                            </div>
+                          )}
+
+                          {practice.area_implemented && (
+                            <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span>{practice.area_implemented}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  {(practice.question_count || 0) > 0 && (
-                    <Badge variant="outline" className="bg-primary/10 text-primary">
-                      {practice.question_count || 0} Q&A
-                    </Badge>
-                  )}
-                  {(practice.is_benchmarked || isBenchmarked?.(practice.id)) && (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">Benchmarked</Badge>
-                  )}
-                  
-                  {/* Status badge removed */}
-                  
-                  {userRole === "hq" && (
-                    <Button 
-                      size="sm" 
-                      variant={(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "outline" : "default"}
-                      onClick={async (e) => { 
-                        e.stopPropagation(); 
-                        e.preventDefault();
-                        try {
-                          setProcessingPracticeId(practice.id);
-                          const isCurrentlyBenchmarked = practice.is_benchmarked || isBenchmarked?.(practice.id);
-                          if (isCurrentlyBenchmarked) {
-                            await unbenchmarkMutation.mutateAsync(practice.id);
-                          } else {
-                            await benchmarkMutation.mutateAsync(practice.id);
-                          }
-                          // Query invalidation is handled by the mutation hooks
-                        } catch (error: any) {
-                          console.error('Failed to toggle benchmark:', error);
-                          // Error toast is handled by mutation hooks
-                        } finally {
-                          setProcessingPracticeId(null);
+
+                  <div className="flex items-center space-x-3">
+                    {(practice.question_count || 0) > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary"
+                      >
+                        {practice.question_count || 0} Q&A
+                      </Badge>
+                    )}
+                    {(practice.is_benchmarked ||
+                      isBenchmarked?.(practice.id)) && (
+                      <Badge
+                        variant="outline"
+                        className="bg-blue-100 text-blue-700 border-blue-200"
+                      >
+                        Benchmarked
+                      </Badge>
+                    )}
+
+                    {/* Status badge removed */}
+
+                    {userRole === "hq" && (
+                      <Button
+                        size="sm"
+                        variant={
+                          practice.is_benchmarked ||
+                          isBenchmarked?.(practice.id)
+                            ? "outline"
+                            : "default"
                         }
-                      }}
-                      disabled={processingPracticeId === practice.id}
-                    >
-                      {processingPracticeId === practice.id ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          {(practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmarking..." : "Benchmarking..."}
-                        </>
-                      ) : (
-                        (practice.is_benchmarked || isBenchmarked?.(practice.id)) ? "Unbenchmark" : "Benchmark"
-                      )}
-                    </Button>
-                  )}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          try {
+                            setProcessingPracticeId(practice.id);
+                            const isCurrentlyBenchmarked =
+                              practice.is_benchmarked ||
+                              isBenchmarked?.(practice.id);
+                            if (isCurrentlyBenchmarked) {
+                              await unbenchmarkMutation.mutateAsync(
+                                practice.id
+                              );
+                            } else {
+                              await benchmarkMutation.mutateAsync(practice.id);
+                            }
+                            // Query invalidation is handled by the mutation hooks
+                          } catch (error: any) {
+                            console.error("Failed to toggle benchmark:", error);
+                            // Error toast is handled by mutation hooks
+                          } finally {
+                            setProcessingPracticeId(null);
+                          }
+                        }}
+                        disabled={processingPracticeId === practice.id}
+                      >
+                        {processingPracticeId === practice.id ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            {practice.is_benchmarked ||
+                            isBenchmarked?.(practice.id)
+                              ? "Unbenchmarking..."
+                              : "Benchmarking..."}
+                          </>
+                        ) : practice.is_benchmarked ||
+                          isBenchmarked?.(practice.id) ? (
+                          "Unbenchmark"
+                        ) : (
+                          "Benchmark"
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

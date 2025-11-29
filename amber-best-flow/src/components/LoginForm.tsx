@@ -61,15 +61,15 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
           />
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl md:text-[2.75rem] font-extrabold bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 bg-clip-text text-transparent leading-tight tracking-tight">
+          <h1 className="text-3xl md:text-[2.75rem] font-extrabold text-gray-900 leading-tight tracking-tight">
             Welcome to InnoSphere
           </h1>
           <div className="flex items-center justify-center gap-2 text-sm text-gray-600 font-medium">
-            <span className="w-7 h-[2px] bg-gradient-to-r from-transparent to-blue-400"></span>
+            <span className="w-7 h-[2px] bg-gradient-to-r from-transparent to-gray-400"></span>
             <p className="px-2">
               Innovation • Sharing • Benchmarking • Cross-learning
             </p>
-            <span className="w-7 h-[2px] bg-gradient-to-l from-transparent to-blue-400"></span>
+            <span className="w-7 h-[2px] bg-gradient-to-l from-transparent to-gray-400"></span>
           </div>
         </div>
       </div>
@@ -85,8 +85,8 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
             Email / Employee ID
           </Label>
           <div className="relative group">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-sky-500/10 group-focus-within:from-blue-500/20 group-focus-within:to-sky-500/20 transition-all duration-300 z-10 pointer-events-none">
-              <User className="h-[1.1rem] w-[1.1rem] text-blue-600 group-focus-within:text-blue-700 transition-colors" />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gray-100 group-focus-within:bg-gray-200 transition-all duration-300 z-10 pointer-events-none">
+              <User className="h-[1.1rem] w-[1.1rem] text-gray-600 group-focus-within:text-gray-900 transition-colors" />
             </div>
             <Input
               id="email"
@@ -110,8 +110,8 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
             Password
           </Label>
           <div className="relative group">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-sky-500/10 group-focus-within:from-blue-500/20 group-focus-within:to-sky-500/20 transition-all duration-300 z-10 pointer-events-none">
-              <Lock className="h-[1.1rem] w-[1.1rem] text-blue-600 group-focus-within:text-blue-700 transition-colors" />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl bg-gray-100 group-focus-within:bg-gray-200 transition-all duration-300 z-10 pointer-events-none">
+              <Lock className="h-[1.1rem] w-[1.1rem] text-gray-600 group-focus-within:text-gray-900 transition-colors" />
             </div>
             <Input
               id="password"
@@ -134,7 +134,7 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
             id="remember"
             checked={rememberMe}
             onCheckedChange={(checked) => setRememberMe(checked === true)}
-            className="h-[1.1rem] w-[1.1rem] rounded-md border-2 border-blue-300 data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-blue-500 data-[state=checked]:to-sky-500 data-[state=checked]:border-blue-500 data-[state=checked]:shadow-lg data-[state=checked]:shadow-blue-500/30 transition-all duration-200"
+            className="h-[1.1rem] w-[1.1rem] rounded-md border-2 border-gray-300 data-[state=checked]:bg-gray-900 data-[state=checked]:border-gray-900 data-[state=checked]:shadow-lg data-[state=checked]:shadow-gray-900/20 transition-all duration-200"
             style={{
               background: rememberMe ? undefined : "rgba(255, 255, 255, 0.7)",
             }}
@@ -153,7 +153,7 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full h-[3.25rem] rounded-xl text-[0.95rem] font-bold text-white border-0 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300/50 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-xl hover:shadow-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 hover:from-blue-700 hover:via-blue-600 hover:to-sky-600 transform hover:scale-[1.02] active:scale-[0.98]"
+          className="w-full h-[3.25rem] rounded-xl text-[0.95rem] font-bold text-white border-0 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-gray-300/50 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-xl hover:shadow-2xl bg-gray-900 hover:bg-gray-800 transform hover:scale-[1.02] active:scale-[0.98]"
         >
           {isLoading ? (
             <>

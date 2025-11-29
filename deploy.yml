@@ -129,18 +129,15 @@ jobs:
 
             echo "🧹 Cleaning up old backups and node_modules..."
             # Remove old backups (keep only last 2)
-            ls -t backups/ 2>/dev/null | tail -n +3 | xargs -I {} rm -rf backups/{} || true
+            ls -t backups/ | tail -n +3 | xargs -I {} rm -rf backups/{}
             
-            # Remove old deployments completely to avoid permission issues
+            # Remove node_modules to free space
             rm -rf node-backend/node_modules
             rm -rf amber-best-flow/node_modules
-            rm -rf node-backend/dist
-            rm -rf amber-best-flow/dist
             
             echo "📊 Disk space after cleanup:"
             df -h | grep "/$"
 
-            echo "📦 Extracting new deployment..."
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
 

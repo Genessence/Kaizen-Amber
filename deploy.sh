@@ -64,6 +64,16 @@ fi
 # Navigate to project directory
 cd $PROJECT_DIR || exit
 
+# Create temporary swap if needed (for low-memory EC2 instances)
+if [ ! -f /swapfile ]; then
+    print_status "Creating temporary swap file for build process..."
+    sudo fallocate -l 2G /tmp/build-swap || sudo dd if=/dev/zero of=/tmp/build-swap bs=1M count=2048
+    sudo chmod 600 /tmp/build-swap
+    sudo mkswap /tmp/build-swap
+    sudo swapon /tmp/build-swap
+    print_status "Swap file created and activated"
+fi
+
 # Install backend dependencies (including devDependencies for building)
 print_status "Installing backend dependencies..."
 cd $BACKEND_DIR
@@ -71,7 +81,10 @@ npm install
 
 # Build backend
 print_status "Building backend..."
+# Increase Node.js memory limit for TypeScript compilation
+export NODE_OPTIONS="--max-old-space-size=2048"
 npm run build
+unset NODE_OPTIONS
 
 # Generate Prisma client
 print_status "Generating Prisma client..."
@@ -94,8 +107,10 @@ else
     print_warning "Public images folder not found - static images may be missing"
 fi
 
-# Build frontend (Vite automatically copies public/ to dist/)
+# Build frontend with increased memory (Vite automatically copies public/ to dist/)
+export NODE_OPTIONS="--max-old-space-size=2048"
 npm run build
+unset NODE_OPTIONS
 
 # Verify images are in dist folder after build
 if [ -d "$FRONTEND_DIR/dist/images" ]; then
